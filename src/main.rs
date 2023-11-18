@@ -1,9 +1,4 @@
-use axum::{
-    http::StatusCode,
-    response::{Html, IntoResponse},
-    routing::get,
-    Extension, Router,
-};
+use axum::{response::Html, routing::get, Extension, Router};
 use maud::html;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -15,9 +10,18 @@ use boggle::BoggleBoard;
 mod dictionary;
 use dictionary::Dictionary;
 
+mod gamestate;
+use gamestate::{GameState, GameStateEnum};
+
 #[tokio::main]
 async fn main() {
     // Set up the router
+    let game_state = GameState::new();
+
+    game_state
+        .lock()
+        .unwrap()
+        .update_state(GameStateEnum::InProgress);
 
     let file_path = format!(
         "{}/static/scrabble-dictionary.txt",
@@ -39,13 +43,6 @@ async fn main() {
         .serve(app.into_make_service())
         .await
         .unwrap();
-}
-
-async fn handle_static_error(error: std::io::Error) -> impl IntoResponse {
-    (
-        StatusCode::INTERNAL_SERVER_ERROR,
-        format!("Failed to serve static file: {}", error),
-    )
 }
 
 async fn serve_boggle_board(Extension(dictionary): Extension<Arc<Dictionary>>) -> Html<String> {
