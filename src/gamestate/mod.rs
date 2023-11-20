@@ -1,3 +1,2 @@
 mod gamestate;
-pub use gamestate::GameState;
-pub use gamestate::GameStateEnum;
+pub use gamestate::{GameState, GameStateEnum};
