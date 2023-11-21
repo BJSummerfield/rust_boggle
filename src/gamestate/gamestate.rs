@@ -67,18 +67,3 @@ impl GameState {
         }
     }
 }
-
-fn main() {
-    let game_state = GameState::new();
-
-    // Example usage
-    {
-        let mut gs = game_state.lock().unwrap();
-        gs.update_state(GameStateEnum::InProgress); // Start the game
-    }
-
-    // The game would continue here...
-    // After some time, you can stop the game:
-    // let mut gs = game_state.lock().unwrap();
-    // gs.update_state(GameStateEnum::GameOver);
-}
