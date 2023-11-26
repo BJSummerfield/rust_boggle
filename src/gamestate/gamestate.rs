@@ -3,7 +3,10 @@ use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::sync::broadcast;
-use tokio::time;
+
+use crate::boggle::BoggleBoard;
+use crate::dictionary::Dictionary;
+
 // Define possible game states
 pub enum GameStateEnum {
     Starting,
@@ -16,26 +19,35 @@ pub struct GameState {
     user_set: HashSet<String>,
     timer: u32,
     state: GameStateEnum,
+    dictionary: Arc<Dictionary>,
     pub tx: broadcast::Sender<String>,
+    pub board: BoggleBoard,
 }
 
-// Implement the GameState struct with a new function well want to also create a funciont to
-// increment the timer by 1 every second.  The timer is what we'll be broadcasting to the clients
-
 impl GameState {
-    pub fn new() -> Self {
+    pub fn new(dictionary: Arc<Dictionary>) -> Self {
         let (tx, _) = broadcast::channel(10);
+        let board = BoggleBoard::new(Arc::clone(&dictionary));
         Self {
             user_set: HashSet::new(),
             timer: 0,
             state: GameStateEnum::Starting,
             tx,
+            board,
+            dictionary,
         }
+    }
+
+    //new_game function will create a new game, it will reset the timer to 0 and intialize a new board
+    pub fn new_game(&mut self) {
+        self.timer = 0;
+
+        // Clone the Arc to get a new reference to the TrieNode
+        self.board = BoggleBoard::new(Arc::clone(&self.dictionary));
     }
 
     //create a function that increments the timer field everyone second.  We'll spawn this function in the main function  and it will run in the background for the duration of the program
     //our timer will be broadcasted to the websockets everytime we increment
-
     pub fn start_timer(game_state: Arc<Mutex<Self>>) {
         tokio::spawn(async move {
             loop {

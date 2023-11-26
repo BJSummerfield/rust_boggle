@@ -5,13 +5,13 @@ use std::path::Path;
 
 #[derive(Default, Debug)]
 pub struct TrieNode {
-    children: HashMap<char, TrieNode>,
-    is_end_of_word: bool,
-    definition: Option<String>,
+    pub children: HashMap<char, TrieNode>,
+    pub is_end_of_word: bool,
+    pub definition: Option<String>,
 }
 #[derive(Debug)]
 pub struct Dictionary {
-    root: TrieNode,
+    pub root: TrieNode,
 }
 
 pub enum SearchResult {
