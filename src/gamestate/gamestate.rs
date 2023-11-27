@@ -46,10 +46,10 @@ impl GameState {
 
     //new_game function will create a new game, it will reset the timer to 0 and intialize a new board
     pub fn new_game(&mut self) {
-        self.render_timer(0);
+        self.render_timer("3:00".to_string());
         self.cancel_timer(); // Cancel the existing timer
 
-        self.timer = 0;
+        self.timer = 180;
         self.timer_cancel_token = Arc::new(Notify::new());
 
         self.board = Some(BoggleBoard::new(Arc::clone(&self.dictionary)));
@@ -62,19 +62,30 @@ impl GameState {
     fn start_timer(&self) {
         let timer_tx = self.tx.clone();
         let cancel_token = Arc::clone(&self.timer_cancel_token);
-        let timer = Arc::new(Mutex::new(0)); // Reset timer value
+
+        // Start at 180 seconds (3 minutes)
+        let timer = Arc::new(Mutex::new(180));
 
         tokio::spawn(async move {
             loop {
                 tokio::select! {
                     _ = tokio::time::sleep(Duration::from_secs(1)) => {
                         let mut timer_guard = timer.lock().unwrap();
-                        *timer_guard += 1;
-                        println!("Timer: {}", *timer_guard);
 
+                        if *timer_guard == 0 {
+                            break;
+                        }
+
+                         *timer_guard -= 1; // Decrement the timer
+
+                        // Convert the remaining time to minutes and seconds
+                        let minutes = *timer_guard / 60;
+                        let seconds = *timer_guard % 60;
+
+                        let fmt_timer = format!("{}:{:02}", minutes, seconds);
                         let timer_html = html! {
                             div id="game_timer" {
-                                (*timer_guard)
+                                (fmt_timer)
                             }
                         }.into_string();
 
@@ -95,7 +106,7 @@ impl GameState {
         self.timer_cancel_token.notify_one();
     }
 
-    fn render_timer(&self, value: u32) {
+    fn render_timer(&self, value: String) {
         let timer_html = html! {
             div id="game_timer" {
                 (value)
