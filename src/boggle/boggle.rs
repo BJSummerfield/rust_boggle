@@ -1,10 +1,6 @@
 use crate::dictionary::{Dictionary, SearchResult};
-use maud::html;
 use rand::seq::{IteratorRandom, SliceRandom};
-use std::fmt;
-use std::sync::{Arc, Mutex};
-use tokio::sync::{broadcast, Notify};
-use tokio::time::{sleep, Duration};
+use std::{fmt, sync::Arc};
 
 // Define the size of the Boggle board
 const SIZE: usize = 4;
@@ -15,21 +11,16 @@ const DICE: [&str; 16] = [
     "ACHOPS", "HIMNQU", "EEINSU", "EEGHNW", "AFFKPS", "HLNNRZ", "DEILRX",
 ];
 
+#[derive(Debug)]
 pub struct BoggleBoard {
     pub board: Vec<Vec<char>>,
     dictionary: Arc<Dictionary>,
     pub valid_words: Vec<(String, String)>,
-    timer: u32,
-    pub tx: broadcast::Sender<String>,
-    timer_cancel_token: Arc<Notify>,
 }
 
 impl BoggleBoard {
     // Generate a new Boggle board
     pub fn new(dictionary: Arc<Dictionary>) -> Self {
-        let (tx, _) = broadcast::channel(10);
-        let timer_cancel_token = Arc::new(Notify::new());
-
         let mut rng = rand::thread_rng();
         let mut dice = DICE;
         dice.shuffle(&mut rng);
@@ -48,54 +39,10 @@ impl BoggleBoard {
             board,
             dictionary,
             valid_words: Vec::new(),
-            timer: 0,
-            tx,
-            timer_cancel_token,
         };
 
-        boggle_board.start_timer();
         boggle_board.find_valid_words();
         boggle_board
-    }
-
-    pub fn start_timer(&self) {
-        let timer_tx = self.tx.clone();
-        let cancel_token = Arc::clone(&self.timer_cancel_token);
-        let timer = Arc::new(Mutex::new(self.timer));
-
-        tokio::spawn(async move {
-            loop {
-                tokio::select! {
-                    _ = sleep(Duration::from_secs(1)) => {
-                        let mut timer_guard = match timer.lock() {
-                            Ok(guard) => guard,
-                            Err(poisoned) => {
-                                eprintln!("Mutex was poisoned. Using poisoned data.");
-                                poisoned.into_inner()
-                            }
-                        };
-                        *timer_guard += 1;
-                        let timer_html = html! {
-                            div id="game_timer" {
-                                (*timer_guard)
-                            }
-                        }.into_string();
-
-                        if let Err(e) = timer_tx.send(timer_html) {
-                            eprintln!("Failed to send timer update: {}", e);
-                        }
-                    },
-                    _ = cancel_token.notified() => {
-                        // Exit the loop when notified
-                        break;
-                    }
-                }
-            }
-        });
-    }
-
-    pub fn cancel_timer(&self) {
-        self.timer_cancel_token.notify_one();
     }
 
     pub fn find_valid_words(&mut self) {

@@ -1,81 +1,153 @@
 use maud::html;
-use std::collections::HashSet;
-use std::sync::{Arc, Mutex};
-use std::time::Duration;
-use tokio::sync::broadcast;
+// use std::collections::HashSet;
+use std::{
+    sync::{Arc, Mutex},
+    time::Duration,
+};
+use tokio::sync::{broadcast, Notify};
 
 use crate::boggle::BoggleBoard;
 use crate::dictionary::Dictionary;
 
 // Define possible game states
-pub enum GameStateEnum {
-    Starting,
-    InProgress,
-    GameOver,
-}
+// #[derive(Debug)]
+// pub enum GameStateEnum {
+//     Starting,
+//     // InProgress,
+//     // GameOver,
+// }
 
 //create a game state struct to hold the game state and the broadcast channel sender for sending messages to the clients (players)
+#[derive(Debug)]
 pub struct GameState {
-    user_set: HashSet<String>,
-    timer: u32,
-    state: GameStateEnum,
+    // user_set: HashSet<String>,
+    // state: GameStateEnum,
+    board: Option<BoggleBoard>,
     dictionary: Arc<Dictionary>,
+    timer: u32,
+    timer_cancel_token: Arc<Notify>,
     pub tx: broadcast::Sender<String>,
-    pub board: BoggleBoard,
 }
 
 impl GameState {
     pub fn new(dictionary: Arc<Dictionary>) -> Self {
         let (tx, _) = broadcast::channel(10);
-        let board = BoggleBoard::new(Arc::clone(&dictionary));
+        let timer_cancel_token = Arc::new(Notify::new());
         Self {
-            user_set: HashSet::new(),
-            timer: 0,
-            state: GameStateEnum::Starting,
-            tx,
-            board,
+            // user_set: HashSet::new(),
+            // state: GameStateEnum::Starting,
+            board: None,
             dictionary,
+            timer: 0,
+            timer_cancel_token,
+            tx,
         }
     }
 
     //new_game function will create a new game, it will reset the timer to 0 and intialize a new board
     pub fn new_game(&mut self) {
-        self.timer = 0;
+        self.render_timer(0);
+        self.cancel_timer(); // Cancel the existing timer
 
-        // Clone the Arc to get a new reference to the TrieNode
-        self.board = BoggleBoard::new(Arc::clone(&self.dictionary));
+        self.timer = 0;
+        self.timer_cancel_token = Arc::new(Notify::new());
+
+        self.board = Some(BoggleBoard::new(Arc::clone(&self.dictionary)));
+
+        self.start_timer();
+        self.render_game_board();
+        self.render_valid_words();
     }
 
-    //create a function that increments the timer field everyone second.  We'll spawn this function in the main function  and it will run in the background for the duration of the program
-    //our timer will be broadcasted to the websockets everytime we increment
-    pub fn start_timer(game_state: Arc<Mutex<Self>>) {
+    fn start_timer(&self) {
+        let timer_tx = self.tx.clone();
+        let cancel_token = Arc::clone(&self.timer_cancel_token);
+        let timer = Arc::new(Mutex::new(0)); // Reset timer value
+
         tokio::spawn(async move {
             loop {
-                tokio::time::sleep(Duration::from_secs(1)).await;
-                let mut state = match game_state.lock() {
-                    Ok(guard) => guard,
-                    Err(poisoned) => {
-                        eprintln!("Mutex was poisoned. Using poisoned data.");
-                        poisoned.into_inner()
+                tokio::select! {
+                    _ = tokio::time::sleep(Duration::from_secs(1)) => {
+                        let mut timer_guard = timer.lock().unwrap();
+                        *timer_guard += 1;
+                        println!("Timer: {}", *timer_guard);
+
+                        let timer_html = html! {
+                            div id="game_timer" {
+                                (*timer_guard)
+                            }
+                        }.into_string();
+
+                        if let Err(e) = timer_tx.send(timer_html) {
+                            eprintln!("Failed to send timer update: {}", e);
+                        }
+                    },
+                    _ = cancel_token.notified() => {
+                        println!("Timer cancelled");
+                        break;
                     }
-                };
-                state.timer += 1;
-                let timer_html = state.timer();
-                if let Err(e) = state.tx.send(timer_html) {
-                    eprintln!("Failed to send timer update: {}", e);
                 }
             }
         });
     }
 
-    //create a function that generates the maud html template that has a div with the id of "timer"
-    //and the contents are the timer value
-    pub fn timer(&self) -> String {
-        html! {
+    fn cancel_timer(&self) {
+        self.timer_cancel_token.notify_one();
+    }
+
+    fn render_timer(&self, value: u32) {
+        let timer_html = html! {
             div id="game_timer" {
-                (self.timer)
+                (value)
             }
         }
-        .into_string()
+        .into_string();
+        self.broadcast_state(timer_html);
+    }
+    fn render_game_board(&self) {
+        if let Some(ref board) = self.board {
+            let board_html = html! {
+                div id="game-board" {
+                    @for row in &board.board {
+                        div class="board-row" {
+                            @for &letter in row {
+                                div class="board-cell" {
+                                    (letter)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            .into_string();
+            self.broadcast_state(board_html);
+        }
+    }
+
+    fn render_valid_words(&self) {
+        if let Some(ref board) = self.board {
+            let valid_words_html = html! {
+                div id="valid-words" {
+                    ul {
+                        @for (word, definition) in &board.valid_words {
+                            li {
+                                div class="word-container" {
+                                    span class="word" { (word) }
+                                    span class="definition" { (definition) }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            .into_string();
+            self.broadcast_state(valid_words_html);
+        }
+    }
+
+    fn broadcast_state(&self, html: String) {
+        if let Err(e) = self.tx.send(html) {
+            eprintln!("Failed to broadcast game state: {}", e);
+        }
     }
 }

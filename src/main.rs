@@ -1,32 +1,29 @@
-use axum::extract::{
-    ws::{Message, WebSocket, WebSocketUpgrade},
-    State,
-};
 use axum::{
+    extract::{
+        ws::{Message, WebSocket, WebSocketUpgrade},
+        State,
+    },
+    http::StatusCode,
     response::{Html, IntoResponse},
     routing::{get, post},
     Extension, Router,
 };
+use futures::{sink::SinkExt, stream::StreamExt};
 use maud::html;
-use std::net::SocketAddr;
-use std::sync::{Arc, Mutex};
+use std::{
+    net::SocketAddr,
+    sync::{Arc, Mutex},
+};
 use tower_http::services::ServeDir;
 
-use futures::{sink::SinkExt, stream::StreamExt};
-
 mod boggle;
-
 mod dictionary;
 use dictionary::Dictionary;
 mod gamestate;
 use gamestate::GameState;
 
-use axum::http::header;
-use axum::http::StatusCode;
 #[tokio::main]
 async fn main() {
-    // Set up the router
-
     let file_path = format!(
         "{}/static/scrabble-dictionary.txt",
         env!("CARGO_MANIFEST_DIR")
@@ -34,8 +31,6 @@ async fn main() {
     let dictionary = Dictionary::new(&file_path).expect("Failed to create dictionary");
 
     let game_state = Arc::new(Mutex::new(GameState::new(Arc::new(dictionary))));
-
-    // GameState::start_timer(game_state.clone());
 
     let app = Router::new()
         .route("/", get(serve_boggle_board))
@@ -61,11 +56,13 @@ async fn websocket_handler(
     ws: WebSocketUpgrade,
     State(state): State<Arc<Mutex<GameState>>>,
 ) -> impl IntoResponse {
+    println!("Websocket connection received");
     ws.on_upgrade(|socket| websocket(socket, state))
 }
-// create a websocket function for handling sending websocket messages to the clients
+// websocket function for handling sending websocket messages to clients
 async fn websocket(ws: WebSocket, state: Arc<Mutex<GameState>>) {
     let (mut tx, _) = ws.split();
+    println!("Websocket connection established");
     // Subscribe to the broadcast channel
     let mut rx = {
         let state_locked = state.lock().unwrap_or_else(|e| e.into_inner());
@@ -73,7 +70,6 @@ async fn websocket(ws: WebSocket, state: Arc<Mutex<GameState>>) {
     };
     // Loop over messages received on the broadcast channel
     while let Ok(msg) = rx.recv().await {
-        // Send the message to the client
         if tx.send(Message::Text(msg)).await.is_err() {
             break;
         }
@@ -83,18 +79,12 @@ async fn websocket(ws: WebSocket, state: Arc<Mutex<GameState>>) {
 async fn new_game_handler(
     Extension(gamestate): Extension<Arc<Mutex<GameState>>>,
 ) -> impl IntoResponse {
-    {
-        let mut gamestate = gamestate.lock().unwrap_or_else(|e| e.into_inner());
-        gamestate.new_game(); // Reset the game state
-    }
-    // Redirect to the board rendering route
-    (StatusCode::SEE_OTHER, [(header::LOCATION, "/")])
+    let mut gamestate = gamestate.lock().unwrap_or_else(|e| e.into_inner());
+    gamestate.new_game(); // Reset the game state
+    (StatusCode::NO_CONTENT, ())
 }
 
-async fn serve_boggle_board(
-    Extension(gamestate): Extension<Arc<Mutex<GameState>>>,
-) -> Html<String> {
-    let gamestate = gamestate.lock().unwrap_or_else(|e| e.into_inner());
+async fn serve_boggle_board() -> Html<String> {
     let markup = html! {
         (maud::DOCTYPE)
         html {
@@ -111,35 +101,13 @@ async fn serve_boggle_board(
                 h1 { "Boggle Game" }
                 div hx-ext="ws" ws-connect="/ws" {}
                 div id="game_timer" {}
-                form action="/new_game" method="post" {
+                form hx-post="/new_game" {
                     button type="submit" { "New Game" }
                 }
-                div id="game-board" {
-                    // Render the Boggle board
-                    @for row in &gamestate.board.board {
-                        div class="board-row" {
-                            @for &letter in row {
-                                div class="board-cell" {
-                                    (letter)
-                                }
-                            }
-                        }
-                    }
-                }
+                div id="game-board" {}
             }
-            div id="valid-words" {
-                ul {
-                    @for (word, definition) in &gamestate.board.valid_words {
-                        li {
-                            div class="word-container" {
-                                span class="word" { (word) }
-                                span class="definition" { (definition) }
-                            }
-                        }
-                    }
-                }
-            }
-        }            // Add more HTML for the input form and other game controls
+            div id="valid-words" { }
+        }
     };
 
     Html(markup.into_string())
