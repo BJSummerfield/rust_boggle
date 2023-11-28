@@ -30,10 +30,17 @@ pub struct GameState {
 }
 
 impl GameState {
-    pub fn new(dictionary: Arc<Dictionary>) -> Self {
+    pub fn new() -> Arc<Mutex<Self>> {
+        let file_path = format!(
+            "{}/static/scrabble-dictionary.txt",
+            env!("CARGO_MANIFEST_DIR")
+        );
+        let dictionary =
+            Arc::new(Dictionary::new(&file_path).expect("Failed to create dictionary"));
+
         let (tx, _) = broadcast::channel(10);
         let timer_cancel_token = Arc::new(Notify::new());
-        Self {
+        Arc::new(Mutex::new(Self {
             // user_set: HashSet::new(),
             // state: GameStateEnum::Starting,
             board: None,
@@ -41,7 +48,7 @@ impl GameState {
             timer: 0,
             timer_cancel_token,
             tx,
-        }
+        }))
     }
 
     //new_game function will create a new game, it will reset the timer to 0 and intialize a new board

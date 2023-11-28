@@ -18,19 +18,12 @@ use tower_http::services::ServeDir;
 
 mod boggle;
 mod dictionary;
-use dictionary::Dictionary;
 mod gamestate;
 use gamestate::GameState;
 
 #[tokio::main]
 async fn main() {
-    let file_path = format!(
-        "{}/static/scrabble-dictionary.txt",
-        env!("CARGO_MANIFEST_DIR")
-    );
-    let dictionary = Dictionary::new(&file_path).expect("Failed to create dictionary");
-
-    let game_state = Arc::new(Mutex::new(GameState::new(Arc::new(dictionary))));
+    let game_state = GameState::new();
 
     let app = Router::new()
         .route("/", get(serve_boggle_board))
