@@ -8,7 +8,7 @@ use crate::dictionary::Dictionary;
 use super::boggle_render::*;
 //
 // Define possible game states
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub enum GameStateEnum {
     Starting,
     InProgress,
@@ -59,6 +59,71 @@ impl GameState {
         game_state
     }
 
+    pub async fn get_game_state(&self) -> String {
+        match self.state {
+            GameStateEnum::Starting => {
+                println!("Starting");
+                boggle_render::render_starting_state()
+            }
+            GameStateEnum::InProgress => {
+                println!("In Progress");
+                boggle_render::render_inprogress_state(&self.timer.to_string(), &self.board)
+            }
+            GameStateEnum::GameOver => {
+                println!("Game Over");
+                boggle_render::render_gameover_state(&self.board)
+            }
+        }
+    }
+
+    pub async fn new_game(&mut self) {
+        match self.state {
+            GameStateEnum::InProgress => (),
+            _ => {
+                self.start_timer();
+
+                self.state = GameStateEnum::InProgress;
+                self.timer_cancel_token = Arc::new(Notify::new());
+                self.board = Some(BoggleBoard::new(Arc::clone(&self.dictionary)));
+
+                let inprogress_html =
+                    boggle_render::render_inprogress_state(&self.timer.to_string(), &self.board);
+                self.broadcast_state(inprogress_html);
+            }
+        }
+    }
+
+    fn game_over(&self) {
+        let game_over_html = boggle_render::render_gameover_state(&self.board);
+        self.broadcast_state(game_over_html);
+    }
+
+    //submit_word function checks if the word is possible in the board and adds it to the players
+    //found words if it is
+
+    pub fn submit_word(&mut self, word: &str) {
+        let sanitized_word = word
+            .trim()
+            .to_lowercase() // Convert to lowercase for consistency
+            .chars()
+            .filter(|c| c.is_alphabetic()) // Ensure only alphabetic characters
+            .collect::<String>();
+
+        // Check word length constraints
+        if sanitized_word.len() < 2 || sanitized_word.len() > 16 {
+            println!("Word length constraints not met.");
+            return;
+        }
+
+        println!("Possible word: {}", sanitized_word);
+        // // Check if the word is possible
+        // if self.board.is_word_possible(&sanitized_word) {
+        //     println!("Possible word: {}", sanitized_word);
+        // } else {
+        //     println!("Word not possible.");
+        // }
+    }
+
     pub async fn start_game_loop(game_state: Arc<Mutex<Self>>) {
         let mut game_state_rx = {
             let state = game_state.lock().await;
@@ -79,23 +144,6 @@ impl GameState {
                 },
             }
         }
-    }
-    fn game_over(&self) {
-        let game_over_html = boggle_render::render_gameover_state(&self.board);
-        self.broadcast_state(game_over_html);
-    }
-
-    //new_game function will create a new game, it will reset the timer to 0 and intialize a new board
-    pub async fn new_game(&mut self) {
-        self.start_timer();
-
-        self.state = GameStateEnum::InProgress;
-        self.timer_cancel_token = Arc::new(Notify::new());
-        self.board = Some(BoggleBoard::new(Arc::clone(&self.dictionary)));
-
-        let inprogress_html =
-            boggle_render::render_inprogress_state(&self.timer.to_string(), &self.board);
-        self.broadcast_state(inprogress_html);
     }
 
     fn start_timer(&self) {
@@ -140,23 +188,6 @@ impl GameState {
                 }
             }
         });
-    }
-
-    pub async fn get_game_state(&self) -> String {
-        match self.state {
-            GameStateEnum::Starting => {
-                println!("Starting");
-                boggle_render::render_starting_state()
-            }
-            GameStateEnum::InProgress => {
-                println!("In Progress");
-                boggle_render::render_inprogress_state(&self.timer.to_string(), &self.board)
-            }
-            GameStateEnum::GameOver => {
-                println!("Game Over");
-                boggle_render::render_gameover_state(&self.board)
-            }
-        }
     }
 
     fn broadcast_state(&self, html: String) {

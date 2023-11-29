@@ -21,13 +21,30 @@ pub mod boggle_render {
         .into_string()
     }
 
+    pub fn render_word_input() -> String {
+        html! {
+            input type="text"
+            name="word"
+            placeholder="Enter word"
+            hx-post="/submit_word"
+            title="Only alphabetic characters; 2-16 letters."
+            maxlength="16"
+            minlength="2"
+            required
+            {}
+        }
+        .into_string()
+    }
+
     pub fn render_starting_state() -> String {
         html! {
             div id = "game_timer" {
                 (PreEscaped(render_new_game_button()))
             }
             div id="game-board" {}
+            div id="word-input" {}
             div id="valid-words" {}
+
         }
         .into_string()
     }
@@ -38,7 +55,10 @@ pub mod boggle_render {
             (timer)
             }
             div id="game-board" {
-            (PreEscaped(render_board(&board)))
+                (PreEscaped(render_board(&board)))
+            }
+            div id="word-input" {
+                (PreEscaped(render_word_input()))
             }
             div id="valid-words" {}
         }
@@ -53,6 +73,7 @@ pub mod boggle_render {
             div id="game-board" {
                 (PreEscaped(render_board(&board)))
             }
+            div id="word-input" {}
             div id="valid-words" {
                 (PreEscaped(render_valid_words(board)))
             }

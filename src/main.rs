@@ -6,11 +6,11 @@ use axum::{
     http::StatusCode,
     response::{Html, IntoResponse},
     routing::{get, post},
-    Extension, Router,
+    Extension, Form, Router,
 };
 use futures::{sink::SinkExt, stream::StreamExt};
 use maud::html;
-use std::{net::SocketAddr, sync::Arc};
+use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 use tower_http::services::ServeDir;
 
 use tokio::sync::Mutex;
@@ -26,6 +26,7 @@ async fn main() {
     let app = Router::new()
         .route("/", get(serve_boggle_board))
         .route("/new_game", post(new_game_handler))
+        .route("/submit_word", post(submit_word_handler))
         .layer(Extension(Arc::clone(&game_state)))
         // Serve static files from the `static` directory
         .nest_service("/static", ServeDir::new("static"))
@@ -79,7 +80,21 @@ async fn new_game_handler(
     Extension(gamestate): Extension<Arc<Mutex<GameState>>>,
 ) -> impl IntoResponse {
     let mut gamestate = gamestate.lock().await;
+
     gamestate.new_game().await; // Reset the game state
+    (StatusCode::NO_CONTENT, ())
+}
+
+async fn submit_word_handler(
+    Extension(gamestate): Extension<Arc<Mutex<GameState>>>,
+    Form(word_data): Form<HashMap<String, String>>,
+) -> impl IntoResponse {
+    let mut gamestate = gamestate.lock().await;
+    let submitted_word = match word_data.get("word") {
+        Some(word) => word.to_owned(),
+        None => String::new(), // Provide a default empty String if word does not exist
+    };
+    gamestate.submit_word(&submitted_word); // Reset the game state
     (StatusCode::NO_CONTENT, ())
 }
 
@@ -101,9 +116,7 @@ async fn serve_boggle_board() -> Html<String> {
             div hx-ext="ws" ws-connect="/ws" {}
                 div id="game_timer" {}
                 div id="game-board" {}
-                div id="word-input" {
-                 input type="text" placeholder="Enter word" hx-post="/submit-word" {}
-                }
+                div id="word-input" { }
                 div id="valid-words" {}
             }
         }

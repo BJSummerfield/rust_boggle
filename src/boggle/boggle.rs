@@ -1,6 +1,6 @@
 use crate::dictionary::{Dictionary, SearchResult};
 use rand::seq::{IteratorRandom, SliceRandom};
-use std::{fmt, sync::Arc};
+use std::sync::Arc;
 
 // Define the size of the Boggle board
 const SIZE: usize = 4;
@@ -95,18 +95,5 @@ impl BoggleBoard {
         // Backtrack
         current_word.pop();
         visited[i][j] = false;
-    }
-}
-//
-// Implement Display for BoggleBoard to print the board
-impl fmt::Display for BoggleBoard {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for row in &self.board {
-            for &ch in row {
-                write!(f, "{} ", ch)?;
-            }
-            writeln!(f)?;
-        }
-        Ok(())
     }
 }
