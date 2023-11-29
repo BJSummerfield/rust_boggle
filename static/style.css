@@ -15,9 +15,11 @@ h1 {
 
 #game-board {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(4, 1fr); 
     gap: 10px;
-    margin: 20px 0;
+    padding: 20px;
+    max-width: 400px; 
+    margin: auto;
 }
 
 .board-cell {
@@ -38,6 +40,30 @@ h1 {
 .board-cell:hover {
     background-color: #f0f0f0;
 }
+
+@keyframes flipX {
+    0% { transform: rotateX(0); }
+    100% { transform: rotateX(360deg); }
+}
+
+.board-cell:nth-child(1) { animation: flipX 0.6s ease-out;  }
+.board-cell:nth-child(2) { animation: flipX 0.9s ease-out; }
+.board-cell:nth-child(3) { animation: flipX 0.45s ease-out; }
+.board-cell:nth-child(4) { animation: flipX 0.8s ease-out; }
+.board-cell:nth-child(5) { animation: flipX 1s ease-out; }
+.board-cell:nth-child(6) { animation: flipX 0.5s ease-out; }
+.board-cell:nth-child(7) { animation: flipX 0.75s ease-out; }
+.board-cell:nth-child(8) { animation: flipX 0.85s ease-out; }
+.board-cell:nth-child(9) { animation: flipX 0.65s ease-out; }
+.board-cell:nth-child(10) { animation: flipX 0.55s ease-out; }
+.board-cell:nth-child(11) { animation: flipX 0.4s ease-out; }
+.board-cell:nth-child(12) { animation: flipX 0.7s ease-out; }
+.board-cell:nth-child(13) { animation: flipX 0.95s ease-out; }
+.board-cell:nth-child(14) { animation: flipX 0.5s ease-out; }
+.board-cell:nth-child(15) { animation: flipX 0.9s ease-out; }
+.board-cell:nth-child(16) { animation: flipX 0.6s ease-out; }
+
+
 
 #word-input {
     margin: 20px 0;
@@ -79,7 +105,6 @@ h1 {
     display: flex;
     flex-wrap: wrap;
     list-style-type: none;
-    padding: 0;
 }
 
 #valid-words li {

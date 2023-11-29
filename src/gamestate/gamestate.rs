@@ -1,4 +1,3 @@
-use maud::html;
 // use std::collections::HashSet;
 use std::{sync::Arc, time::Duration};
 use tokio::sync::{broadcast, Mutex, Notify};
@@ -6,6 +5,8 @@ use tokio::sync::{broadcast, Mutex, Notify};
 use crate::boggle::BoggleBoard;
 use crate::dictionary::Dictionary;
 
+use super::boggle_render::*;
+//
 // Define possible game states
 #[derive(Debug, Copy, Clone)]
 pub enum GameStateEnum {
@@ -41,12 +42,11 @@ impl GameState {
         let timer_cancel_token = Arc::new(Notify::new());
         let game_state = Arc::new(Mutex::new(Self {
             // user_set: HashSet::new(),
-            // state: GameStateEnum::Starting,
             board: None,
             dictionary,
             game_channel_tx,
             state: GameStateEnum::Starting,
-            timer: 0,
+            timer: 10,
             timer_cancel_token,
             tx,
         }));
@@ -73,34 +73,29 @@ impl GameState {
                     match new_state {
                         GameStateEnum::GameOver => {
                             state.game_over();
-                            // Break the loop if you want to stop the game loop on game over
-                            // break;
                         },
-                        // Handle other states if needed
                         _ => {}
                     }
                 },
-                // Other events can be handled here...
             }
         }
     }
     fn game_over(&self) {
-        self.render_new_game_button();
-        self.render_valid_words();
-        // Implement the logic for when the game is over
+        let game_over_html = boggle_render::render_gameover_state(&self.board);
+        self.broadcast_state(game_over_html);
     }
 
     //new_game function will create a new game, it will reset the timer to 0 and intialize a new board
     pub async fn new_game(&mut self) {
+        self.start_timer();
+
         self.state = GameStateEnum::InProgress;
-        self.cancel_timer(); // Cancel the existing timer
-        self.render_timer("3:00".to_string()).await;
-        self.clear_valid_words();
-        self.timer = 10;
         self.timer_cancel_token = Arc::new(Notify::new());
         self.board = Some(BoggleBoard::new(Arc::clone(&self.dictionary)));
-        self.start_timer();
-        self.render_game_board();
+
+        let inprogress_html =
+            boggle_render::render_inprogress_state(&self.timer.to_string(), &self.board);
+        self.broadcast_state(inprogress_html);
     }
 
     fn start_timer(&self) {
@@ -109,7 +104,7 @@ impl GameState {
         let game_channel_tx = self.game_channel_tx.clone();
 
         // Start at 180 seconds (3 minutes)
-        let timer = Arc::new(Mutex::new(10));
+        let timer = Arc::new(Mutex::new(self.timer));
 
         tokio::spawn(async move {
             loop {
@@ -132,11 +127,7 @@ impl GameState {
                         let seconds = *timer_guard % 60;
 
                         let fmt_timer = format!("{}:{:02}", minutes, seconds);
-                        let timer_html = html! {
-                            div id="game_timer" {
-                                (fmt_timer)
-                            }
-                        }.into_string();
+                        let timer_html = boggle_render::render_timer(&fmt_timer);
 
                         if let Err(e) = timer_tx.send(timer_html) {
                             eprintln!("Failed to send timer update: {}", e);
@@ -151,158 +142,21 @@ impl GameState {
         });
     }
 
-    fn cancel_timer(&self) {
-        self.timer_cancel_token.notify_one();
-    }
-
     pub async fn get_game_state(&self) -> String {
         match self.state {
             GameStateEnum::Starting => {
                 println!("Starting");
-                html! {
-                    div id = "game_timer" {
-                        form hx-post="/new_game" {
-                            button type="submit" { "New Game" }
-                        }
-                    }
-                    div id="game-board" {}
-                    div id="valid-words" {}
-                }
-                .into_string()
+                boggle_render::render_starting_state()
             }
             GameStateEnum::InProgress => {
                 println!("In Progress");
-                html! {
-                    div id = "game_timer" {
-                        (self.timer)
-                    }
-                    div id="game-board" {
-                         @if let Some(ref board) = self.board {
-                            @for row in &board.board {
-                                div class="board-row" {
-                                    @for &letter in row {
-                                        div class="board-cell" {
-                                            (letter)
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                .into_string()
+                boggle_render::render_inprogress_state(&self.timer.to_string(), &self.board)
             }
             GameStateEnum::GameOver => {
                 println!("Game Over");
-                html! {
-                    div id = "game_timer" {
-                        form hx-post="/new_game" {
-                            button type="submit" { "New Game" }
-                        }
-                    }
-                    div id="game-board" {
-                         @if let Some(ref board) = self.board {
-                            @for row in &board.board {
-                                div class="board-row" {
-                                    @for &letter in row {
-                                        div class="board-cell" {
-                                            (letter)
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    div id="valid-words" {
-                        @if let Some(ref board) = self.board {
-                            ul {
-                                @for (word, definition) in &board.valid_words {
-                                    li {
-                                        div class="word-container" {
-                                            span class="word" { (word) }
-                                            span class="definition" { (definition) }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                .into_string()
+                boggle_render::render_gameover_state(&self.board)
             }
         }
-    }
-
-    async fn render_timer(&self, value: String) {
-        let timer_html = html! {
-            div id="game_timer" {
-                (value)
-            }
-        }
-        .into_string();
-        self.broadcast_state(timer_html);
-    }
-
-    fn render_game_board(&self) {
-        if let Some(ref board) = self.board {
-            let board_html = html! {
-                div id="game-board" {
-                    @for row in &board.board {
-                        div class="board-row" {
-                            @for &letter in row {
-                                div class="board-cell" {
-                                    (letter)
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            .into_string();
-            self.broadcast_state(board_html);
-        }
-    }
-
-    fn render_valid_words(&self) {
-        if let Some(ref board) = self.board {
-            let valid_words_html = html! {
-                div id="valid-words" {
-                    ul {
-                        @for (word, definition) in &board.valid_words {
-                            li {
-                                div class="word-container" {
-                                    span class="word" { (word) }
-                                    span class="definition" { (definition) }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            .into_string();
-            self.broadcast_state(valid_words_html);
-        }
-    }
-
-    fn clear_valid_words(&self) {
-        let valid_words_html = html! {
-            div id="valid-words" {}
-        }
-        .into_string();
-        self.broadcast_state(valid_words_html);
-    }
-
-    fn render_new_game_button(&self) {
-        let new_game_button = html! {
-            div id = "game_timer" {
-
-                form hx-post="/new_game" {
-                    button type="submit" { "New Game" }
-                }
-            }
-        }
-        .into_string();
-        self.broadcast_state(new_game_button);
     }
 
     fn broadcast_state(&self, html: String) {
