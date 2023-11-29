@@ -1,5 +1,5 @@
 // use std::collections::HashSet;
-use std::{sync::Arc, time::Duration};
+use std::{collections::HashSet, sync::Arc, time::Duration};
 use tokio::sync::{broadcast, Mutex, Notify};
 
 use crate::boggle::BoggleBoard;
@@ -18,7 +18,7 @@ pub enum GameStateEnum {
 //create a game state struct to hold the game state and the broadcast channel sender for sending messages to the clients (players)
 #[derive(Debug)]
 pub struct GameState {
-    // user_set: HashSet<String>,
+    pub players: HashSet<String>,
     state: GameStateEnum,
     board: Option<BoggleBoard>,
     dictionary: Arc<Dictionary>,
@@ -41,7 +41,7 @@ impl GameState {
         let (game_channel_tx, _) = broadcast::channel(1);
         let timer_cancel_token = Arc::new(Notify::new());
         let game_state = Arc::new(Mutex::new(Self {
-            // user_set: HashSet::new(),
+            players: HashSet::new(),
             board: None,
             dictionary,
             game_channel_tx,
@@ -57,6 +57,10 @@ impl GameState {
         });
 
         game_state
+    }
+
+    pub async fn get_new_user(&self) -> String {
+        boggle_render::render_new_user()
     }
 
     pub async fn get_game_state(&self) -> String {
@@ -138,10 +142,20 @@ impl GameState {
                     match new_state {
                         GameStateEnum::GameOver => {
                             state.game_over();
+                            // Additional logic can be added here if needed
                         },
                         _ => {}
                     }
                 },
+            }
+
+            // Check if the players hash is empty and revert to starting state
+            {
+                let mut state = game_state.lock().await;
+                if state.players.is_empty() {
+                    state.state = GameStateEnum::Starting;
+                    // You can also add additional logic here to reset the game or inform players
+                }
             }
         }
     }

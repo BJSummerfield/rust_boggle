@@ -12,6 +12,23 @@ pub mod boggle_render {
         .into_string()
     }
 
+    pub fn render_new_user() -> String {
+        html! {
+            div id="word-input" {
+
+                form hx-post="/new_user" {
+                    input type="text"
+                    name="username"
+                    placeholder="Enter username"
+                    ws-send
+                    required
+                    {}
+                }
+            }
+        }
+        .into_string()
+    }
+
     fn render_new_game_button() -> String {
         html! {
             form hx-post="/new_game" {

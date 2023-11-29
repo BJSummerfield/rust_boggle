@@ -13,7 +13,10 @@ use maud::html;
 use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 use tower_http::services::ServeDir;
 
-use tokio::sync::Mutex;
+use tokio::sync::{broadcast, Mutex};
+
+use serde::Deserialize;
+
 mod boggle;
 mod dictionary;
 mod gamestate;
@@ -53,27 +56,106 @@ async fn websocket_handler(
 }
 // websocket function for handling sending websocket messages to clients
 async fn websocket(ws: WebSocket, state: Arc<Mutex<GameState>>) {
-    let (mut tx, _) = ws.split();
+    let (mut sender, mut reciever) = ws.split();
     println!("Websocket connection established");
 
-    let initial_game_state = { state.lock().await.get_game_state().await };
+    let new_user_html = { state.lock().await.get_new_user().await };
+    let _ = sender.send(Message::Text(new_user_html)).await;
+    let mut tx = None::<broadcast::Sender<String>>;
+    let mut username = String::new();
 
-    if let Err(e) = tx.send(Message::Text(initial_game_state)).await {
-        eprintln!("Error sending initial message: {}", e);
-        return;
-    }
-    // Subscribe to the broadcast channel
-    let mut rx = {
-        let state_locked = state.lock().await;
-        state_locked.tx.subscribe()
-    };
+    while let Some(Ok(message)) = reciever.next().await {
+        println!("message received {:?} ", message);
+        if let Message::Text(name) = message {
+            println!("Name here {name}");
+            #[derive(Deserialize, Debug)]
+            struct Connect {
+                username: String,
+            }
 
-    // Loop over messages received on the broadcast channel
-    while let Ok(msg) = rx.recv().await {
-        if tx.send(Message::Text(msg)).await.is_err() {
-            break;
+            let connect: Connect = match serde_json::from_str(&name) {
+                Ok(connect) => connect,
+                Err(error) => {
+                    println!("{error}");
+                    let _ = sender
+                        .send(Message::Text(String::from(
+                            "Failed to parse connect message",
+                        )))
+                        .await;
+                    break;
+                }
+            };
+            println!("connect here {:?}", connect);
+            // Scope to drop the mutex guard before the next await
+            {
+                // If username that is sent by client is not taken, fill username string.
+                let mut gamestate = state.lock().await;
+
+                tx = Some(gamestate.tx.clone());
+
+                println!("gamestate.players {:?}", gamestate.players);
+                if !gamestate.players.contains(&connect.username) {
+                    gamestate.players.insert(connect.username.to_owned());
+                    username = connect.username;
+                }
+                println!("After gamstate.players {:?}", gamestate.players);
+            }
+
+            // If not empty we want to quit the loop else we want to quit function.
+            if tx.is_some() && !username.is_empty() {
+                break;
+            } else {
+                // Only send our client that username is taken.
+                let _ = sender
+                    .send(Message::Text(format!("{} is taken", username)))
+                    .await;
+
+                return;
+            }
         }
     }
+
+    let tx = tx.unwrap();
+    let mut rx = tx.subscribe();
+    let msg = format!("{} joined.", username);
+    let _ = tx.send(msg);
+
+    let initial_game_state = { state.lock().await.get_game_state().await };
+    let _ = tx.send(initial_game_state).is_err();
+
+    let mut send_task = tokio::spawn(async move {
+        while let Ok(msg) = rx.recv().await {
+            // In any websocket error, break loop.
+            if sender.send(Message::Text(msg)).await.is_err() {
+                break;
+            }
+        }
+    });
+
+    let mut recv_task = {
+        // Clone things we want to pass to the receiving task.
+        let tx = tx.clone();
+
+        // This task will receive messages from client and send them to broadcast subscribers.
+        tokio::spawn(async move {
+            while let Some(Ok(Message::Text(text))) = reciever.next().await {
+                if tx.send(text).is_err() {
+                    break;
+                }
+            }
+        })
+    };
+
+    tokio::select! {
+        _ = (&mut send_task) => recv_task.abort(),
+        _ = (&mut recv_task) => send_task.abort(),
+    };
+
+    let msg = format!("{} left.", username);
+    let _ = tx.send(msg);
+    let mut gamestate = state.lock().await;
+
+    gamestate.players.remove(&username);
 }
 
 async fn new_game_handler(
@@ -100,24 +182,25 @@ async fn submit_word_handler(
 
 async fn serve_boggle_board() -> Html<String> {
     let markup = html! {
-    (maud::DOCTYPE)
-    html {
-        head {
-            title { "Boggle Game" }
-            script
-                src="https://unpkg.com/htmx.org@1.9.9"
-                integrity="sha384-QFjmbokDn2DjBjq+fM+8LUIVrAgqcNW2s0PjAxHETgRn9l4fvX31ZxDxvwQnyMOX"
-                crossorigin="anonymous" {}
-            script src="https://unpkg.com/htmx.org/dist/ext/ws.js" {}
-           link rel="stylesheet" href="/static/style.css";
-        }
-        body {
-            h1 { "Boggle Game" }
-            div hx-ext="ws" ws-connect="/ws" {}
-                div id="game_timer" {}
-                div id="game-board" {}
-                div id="word-input" { }
-                div id="valid-words" {}
+        (maud::DOCTYPE)
+        html {
+            head {
+                title { "Boggle Game" }
+                script
+                    src="https://unpkg.com/htmx.org@1.9.9"
+                    integrity="sha384-QFjmbokDn2DjBjq+fM+8LUIVrAgqcNW2s0PjAxHETgRn9l4fvX31ZxDxvwQnyMOX"
+                    crossorigin="anonymous" {}
+                script src="https://unpkg.com/htmx.org/dist/ext/ws.js" {}
+               link rel="stylesheet" href="/static/style.css";
+            }
+            body hx-ext="ws" ws-connect="/ws" {
+                h1 { "Boggle Game" }
+                // div hx-ext="ws" ws-connect="/ws" {
+                    div id="game_timer" {}
+                    div id="game-board" {}
+                    div id="word-input" {}
+                    div id="valid-words" {}
+                // }
             }
         }
     };
