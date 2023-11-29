@@ -85,23 +85,26 @@ async fn new_game_handler(
 
 async fn serve_boggle_board() -> Html<String> {
     let markup = html! {
-        (maud::DOCTYPE)
-        html {
-            head {
-                title { "Boggle Game" }
-                script
-                    src="https://unpkg.com/htmx.org@1.9.9"
-                    integrity="sha384-QFjmbokDn2DjBjq+fM+8LUIVrAgqcNW2s0PjAxHETgRn9l4fvX31ZxDxvwQnyMOX"
-                    crossorigin="anonymous" {}
-                script src="https://unpkg.com/htmx.org/dist/ext/ws.js" {}
-               link rel="stylesheet" href="/static/style.css";
-            }
-            body {
-                h1 { "Boggle Game" }
-                div hx-ext="ws" ws-connect="/ws" {}
-                    div id="game_timer" {}
-                    div id="game-board" {}
-                    div id="valid-words" {}
+    (maud::DOCTYPE)
+    html {
+        head {
+            title { "Boggle Game" }
+            script
+                src="https://unpkg.com/htmx.org@1.9.9"
+                integrity="sha384-QFjmbokDn2DjBjq+fM+8LUIVrAgqcNW2s0PjAxHETgRn9l4fvX31ZxDxvwQnyMOX"
+                crossorigin="anonymous" {}
+            script src="https://unpkg.com/htmx.org/dist/ext/ws.js" {}
+           link rel="stylesheet" href="/static/style.css";
+        }
+        body {
+            h1 { "Boggle Game" }
+            div hx-ext="ws" ws-connect="/ws" {}
+                div id="game_timer" {}
+                div id="game-board" {}
+                div id="word-input" {
+                 input type="text" placeholder="Enter word" hx-post="/submit-word" {}
+                }
+                div id="valid-words" {}
             }
         }
     };
