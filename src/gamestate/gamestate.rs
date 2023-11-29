@@ -1,32 +1,30 @@
 use maud::html;
 // use std::collections::HashSet;
-use std::{
-    sync::{Arc, Mutex},
-    time::Duration,
-};
-use tokio::sync::{broadcast, Notify};
+use std::{sync::Arc, time::Duration};
+use tokio::sync::{broadcast, Mutex, Notify};
 
 use crate::boggle::BoggleBoard;
 use crate::dictionary::Dictionary;
 
 // Define possible game states
-// #[derive(Debug)]
-// pub enum GameStateEnum {
-//     Starting,
-//     // InProgress,
-//     // GameOver,
-// }
+#[derive(Debug, Copy, Clone)]
+pub enum GameStateEnum {
+    Starting,
+    InProgress,
+    GameOver,
+}
 
 //create a game state struct to hold the game state and the broadcast channel sender for sending messages to the clients (players)
 #[derive(Debug)]
 pub struct GameState {
     // user_set: HashSet<String>,
-    // state: GameStateEnum,
+    state: GameStateEnum,
     board: Option<BoggleBoard>,
     dictionary: Arc<Dictionary>,
     timer: u32,
     timer_cancel_token: Arc<Notify>,
     pub tx: broadcast::Sender<String>,
+    game_channel_tx: broadcast::Sender<GameStateEnum>,
 }
 
 impl GameState {
@@ -39,24 +37,63 @@ impl GameState {
             Arc::new(Dictionary::new(&file_path).expect("Failed to create dictionary"));
 
         let (tx, _) = broadcast::channel(10);
+        let (game_channel_tx, _) = broadcast::channel(1);
         let timer_cancel_token = Arc::new(Notify::new());
-        Arc::new(Mutex::new(Self {
+        let game_state = Arc::new(Mutex::new(Self {
             // user_set: HashSet::new(),
             // state: GameStateEnum::Starting,
             board: None,
             dictionary,
+            game_channel_tx,
+            state: GameStateEnum::Starting,
             timer: 0,
             timer_cancel_token,
             tx,
-        }))
+        }));
+
+        let game_state_clone = Arc::clone(&game_state);
+        tokio::spawn(async move {
+            GameState::start_game_loop(game_state_clone).await;
+        });
+
+        game_state
     }
 
+    pub async fn start_game_loop(game_state: Arc<Mutex<Self>>) {
+        let mut game_state_rx = {
+            let state = game_state.lock().await;
+            state.game_channel_tx.subscribe()
+        };
+
+        loop {
+            tokio::select! {
+                Ok(new_state) = game_state_rx.recv() => {
+                    let mut state = game_state.lock().await;
+                    state.state = new_state;
+                    match new_state {
+                        GameStateEnum::GameOver => {
+                            state.game_over();
+                            // Break the loop if you want to stop the game loop on game over
+                            // break;
+                        },
+                        // Handle other states if needed
+                        _ => {}
+                    }
+                },
+                // Other events can be handled here...
+            }
+        }
+    }
+    fn game_over(&self) {
+        println!("Game over");
+        // Implement the logic for when the game is over
+    }
     //new_game function will create a new game, it will reset the timer to 0 and intialize a new board
     pub fn new_game(&mut self) {
         self.render_timer("3:00".to_string());
         self.cancel_timer(); // Cancel the existing timer
 
-        self.timer = 180;
+        self.timer = 10;
         self.timer_cancel_token = Arc::new(Notify::new());
 
         self.board = Some(BoggleBoard::new(Arc::clone(&self.dictionary)));
@@ -69,17 +106,22 @@ impl GameState {
     fn start_timer(&self) {
         let timer_tx = self.tx.clone();
         let cancel_token = Arc::clone(&self.timer_cancel_token);
+        let game_channel_tx = self.game_channel_tx.clone();
 
         // Start at 180 seconds (3 minutes)
-        let timer = Arc::new(Mutex::new(180));
+        let timer = Arc::new(Mutex::new(10));
 
         tokio::spawn(async move {
             loop {
                 tokio::select! {
                     _ = tokio::time::sleep(Duration::from_secs(1)) => {
-                        let mut timer_guard = timer.lock().unwrap();
+                        let mut timer_guard = timer.lock().await;
+
 
                         if *timer_guard == 0 {
+                            if let Err(e) = game_channel_tx.send(GameStateEnum::GameOver) {
+                                eprintln!("Failed to send game over message: {}", e);
+                            }
                             break;
                         }
 

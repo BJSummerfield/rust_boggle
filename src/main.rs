@@ -10,12 +10,10 @@ use axum::{
 };
 use futures::{sink::SinkExt, stream::StreamExt};
 use maud::html;
-use std::{
-    net::SocketAddr,
-    sync::{Arc, Mutex},
-};
+use std::{net::SocketAddr, sync::Arc};
 use tower_http::services::ServeDir;
 
+use tokio::sync::Mutex;
 mod boggle;
 mod dictionary;
 mod gamestate;
@@ -58,7 +56,7 @@ async fn websocket(ws: WebSocket, state: Arc<Mutex<GameState>>) {
     println!("Websocket connection established");
     // Subscribe to the broadcast channel
     let mut rx = {
-        let state_locked = state.lock().unwrap_or_else(|e| e.into_inner());
+        let state_locked = state.lock().await;
         state_locked.tx.subscribe()
     };
     // Loop over messages received on the broadcast channel
@@ -72,7 +70,7 @@ async fn websocket(ws: WebSocket, state: Arc<Mutex<GameState>>) {
 async fn new_game_handler(
     Extension(gamestate): Extension<Arc<Mutex<GameState>>>,
 ) -> impl IntoResponse {
-    let mut gamestate = gamestate.lock().unwrap_or_else(|e| e.into_inner());
+    let mut gamestate = gamestate.lock().await;
     gamestate.new_game(); // Reset the game state
     (StatusCode::NO_CONTENT, ())
 }
