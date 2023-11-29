@@ -54,11 +54,19 @@ async fn websocket_handler(
 async fn websocket(ws: WebSocket, state: Arc<Mutex<GameState>>) {
     let (mut tx, _) = ws.split();
     println!("Websocket connection established");
+
+    let initial_game_state = { state.lock().await.get_game_state().await };
+
+    if let Err(e) = tx.send(Message::Text(initial_game_state)).await {
+        eprintln!("Error sending initial message: {}", e);
+        return;
+    }
     // Subscribe to the broadcast channel
     let mut rx = {
         let state_locked = state.lock().await;
         state_locked.tx.subscribe()
     };
+
     // Loop over messages received on the broadcast channel
     while let Ok(msg) = rx.recv().await {
         if tx.send(Message::Text(msg)).await.is_err() {
@@ -71,7 +79,7 @@ async fn new_game_handler(
     Extension(gamestate): Extension<Arc<Mutex<GameState>>>,
 ) -> impl IntoResponse {
     let mut gamestate = gamestate.lock().await;
-    gamestate.new_game(); // Reset the game state
+    gamestate.new_game().await; // Reset the game state
     (StatusCode::NO_CONTENT, ())
 }
 
@@ -91,13 +99,10 @@ async fn serve_boggle_board() -> Html<String> {
             body {
                 h1 { "Boggle Game" }
                 div hx-ext="ws" ws-connect="/ws" {}
-                div id="game_timer" {}
-                form hx-post="/new_game" {
-                    button type="submit" { "New Game" }
-                }
-                div id="game-board" {}
+                    div id="game_timer" {}
+                    div id="game-board" {}
+                    div id="valid-words" {}
             }
-            div id="valid-words" { }
         }
     };
 
