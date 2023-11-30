@@ -14,17 +14,18 @@ pub mod boggle_render {
 
     pub fn render_new_user() -> String {
         html! {
-            div id="word-input" {
 
-                form hx-post="/new_user" {
+            div id = "game_timer" {}
+            div id="game-board" {}
+            div id="word-input" {
                     input type="text"
                     name="username"
                     placeholder="Enter username"
                     ws-send
                     required
                     {}
-                }
             }
+            div id="valid-words" {}
         }
         .into_string()
     }
@@ -43,12 +44,14 @@ pub mod boggle_render {
             input type="text"
             name="word"
             placeholder="Enter word"
-            hx-post="/submit_word"
+            ws-send
             title="Only alphabetic characters; 2-16 letters."
             maxlength="16"
             minlength="2"
             required
+            autofocus
             {}
+            script { "document.addEventListener('DOMContentLoaded', function() { document.getElementsByName('word')[0].focus(); });" }
         }
         .into_string()
     }
@@ -78,6 +81,28 @@ pub mod boggle_render {
                 (PreEscaped(render_word_input()))
             }
             div id="valid-words" {}
+        }
+        .into_string()
+    }
+
+    pub fn render_word_submit(found_words: &[String]) -> String {
+        html! {
+            div id="word-input" {
+                (PreEscaped(render_word_input()))
+            }
+            div id="valid-words" {
+                ul {
+                   @for word in found_words {
+                       li {
+                           div class="word-container" {
+                               span class="word" { (word) }
+                               span clas="definition" {}
+                           }
+                       }
+                   }
+                }
+            }
+
         }
         .into_string()
     }

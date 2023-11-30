@@ -85,7 +85,7 @@ h1 {
     border-radius: 4px;
     background-color: #fff;
     color: black;
-    text-transform: uppercase;
+    /* text-transform: uppercase; */
     animation: stretch 0.5s forwards; /* Stretch effect */
     transform-origin: center; /* Ensures expansion from the left */
 
@@ -125,15 +125,11 @@ h1 {
     transform-origin: center;
 }
 
-#valid-words.removed {
-    animation: shrink 0.5s forwards; /* Shrink effect */
-    transform-origin: center;
-}
-
 #valid-words ul {
     display: flex;
     flex-wrap: wrap;
     list-style-type: none;
+    gap: 80px; /* Adjust the gap as needed */
 }
 
 #valid-words li {

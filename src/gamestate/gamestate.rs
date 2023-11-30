@@ -1,9 +1,10 @@
 // use std::collections::HashSet;
-use std::{collections::HashSet, sync::Arc, time::Duration};
+use std::{collections::HashMap, sync::Arc, time::Duration};
 use tokio::sync::{broadcast, Mutex, Notify};
 
 use crate::boggle::BoggleBoard;
 use crate::dictionary::Dictionary;
+use crate::player_state::PlayerState;
 
 use super::boggle_render::*;
 //
@@ -18,7 +19,7 @@ pub enum GameStateEnum {
 //create a game state struct to hold the game state and the broadcast channel sender for sending messages to the clients (players)
 #[derive(Debug)]
 pub struct GameState {
-    pub players: HashSet<String>,
+    pub players: HashMap<String, PlayerState>,
     state: GameStateEnum,
     board: Option<BoggleBoard>,
     dictionary: Arc<Dictionary>,
@@ -41,12 +42,12 @@ impl GameState {
         let (game_channel_tx, _) = broadcast::channel(1);
         let timer_cancel_token = Arc::new(Notify::new());
         let game_state = Arc::new(Mutex::new(Self {
-            players: HashSet::new(),
+            players: HashMap::new(),
             board: None,
             dictionary,
             game_channel_tx,
             state: GameStateEnum::Starting,
-            timer: 10,
+            timer: 180,
             timer_cancel_token,
             tx,
         }));
@@ -57,6 +58,17 @@ impl GameState {
         });
 
         game_state
+    }
+
+    fn clear_playerstates(&mut self) {
+        for (_, player) in self.players.iter_mut() {
+            player.found_words.clear();
+            player.score = 0;
+        }
+    }
+
+    pub fn add_player(&mut self, name: String) {
+        self.players.entry(name).or_insert(PlayerState::new());
     }
 
     pub async fn get_new_user(&self) -> String {
@@ -84,10 +96,10 @@ impl GameState {
         match self.state {
             GameStateEnum::InProgress => (),
             _ => {
+                self.clear_playerstates();
                 self.start_timer();
 
                 self.state = GameStateEnum::InProgress;
-                self.timer_cancel_token = Arc::new(Notify::new());
                 self.board = Some(BoggleBoard::new(Arc::clone(&self.dictionary)));
 
                 let inprogress_html =
@@ -105,13 +117,15 @@ impl GameState {
     //submit_word function checks if the word is possible in the board and adds it to the players
     //found words if it is
 
-    pub fn submit_word(&mut self, word: &str) {
-        let sanitized_word = word
-            .trim()
-            .to_lowercase() // Convert to lowercase for consistency
-            .chars()
-            .filter(|c| c.is_alphabetic()) // Ensure only alphabetic characters
-            .collect::<String>();
+    pub fn submit_word(&mut self, username: &str, word: &str) {
+        println!("Made it to submit_word");
+        let sanitized_word = word.trim().to_lowercase(); // Trim and convert to lowercase
+
+        // Check if the word contains spaces or non-alphabetic characters
+        if sanitized_word.contains(' ') || sanitized_word.chars().any(|c| !c.is_alphabetic()) {
+            println!("Word contains spaces or non-alphabetic characters and is therefore invalid.");
+            return;
+        }
 
         // Check word length constraints
         if sanitized_word.len() < 2 || sanitized_word.len() > 16 {
@@ -119,13 +133,19 @@ impl GameState {
             return;
         }
 
-        println!("Possible word: {}", sanitized_word);
-        // // Check if the word is possible
-        // if self.board.is_word_possible(&sanitized_word) {
-        //     println!("Possible word: {}", sanitized_word);
-        // } else {
-        //     println!("Word not possible.");
-        // }
+        if let Some(player_state) = self.players.get_mut(username) {
+            player_state.add_word(sanitized_word);
+            println!("Player state: {:?}", player_state.found_words);
+            let submit_word_html = boggle_render::render_word_submit(&player_state.found_words);
+            self.broadcast_state(submit_word_html);
+        } else {
+            println!("Username not found: {}", username);
+        }
+    }
+
+    pub async fn set_state_to_starting(&mut self) {
+        self.state = GameStateEnum::Starting;
+        self.cancel_timer();
     }
 
     pub async fn start_game_loop(game_state: Arc<Mutex<Self>>) {
@@ -148,15 +168,6 @@ impl GameState {
                     }
                 },
             }
-
-            // Check if the players hash is empty and revert to starting state
-            {
-                let mut state = game_state.lock().await;
-                if state.players.is_empty() {
-                    state.state = GameStateEnum::Starting;
-                    // You can also add additional logic here to reset the game or inform players
-                }
-            }
         }
     }
 
@@ -167,13 +178,11 @@ impl GameState {
 
         // Start at 180 seconds (3 minutes)
         let timer = Arc::new(Mutex::new(self.timer));
-
         tokio::spawn(async move {
             loop {
                 tokio::select! {
                     _ = tokio::time::sleep(Duration::from_secs(1)) => {
                         let mut timer_guard = timer.lock().await;
-
 
                         if *timer_guard == 0 {
                             if let Err(e) = game_channel_tx.send(GameStateEnum::GameOver) {
@@ -196,7 +205,6 @@ impl GameState {
                         }
                     },
                     _ = cancel_token.notified() => {
-                        println!("Timer cancelled");
                         break;
                     }
                 }
@@ -208,5 +216,9 @@ impl GameState {
         if let Err(e) = self.tx.send(html) {
             eprintln!("Failed to broadcast game state: {}", e);
         }
+    }
+
+    fn cancel_timer(&self) {
+        self.timer_cancel_token.notify_one();
     }
 }

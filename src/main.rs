@@ -20,6 +20,7 @@ use serde::Deserialize;
 mod boggle;
 mod dictionary;
 mod gamestate;
+mod player_state;
 use gamestate::GameState;
 
 #[tokio::main]
@@ -29,7 +30,7 @@ async fn main() {
     let app = Router::new()
         .route("/", get(serve_boggle_board))
         .route("/new_game", post(new_game_handler))
-        .route("/submit_word", post(submit_word_handler))
+        // .route("/submit_word", post(submit_word_handler))
         .layer(Extension(Arc::clone(&game_state)))
         // Serve static files from the `static` directory
         .nest_service("/static", ServeDir::new("static"))
@@ -67,7 +68,6 @@ async fn websocket(ws: WebSocket, state: Arc<Mutex<GameState>>) {
     while let Some(Ok(message)) = reciever.next().await {
         println!("message received {:?} ", message);
         if let Message::Text(name) = message {
-            println!("Name here {name}");
             #[derive(Deserialize, Debug)]
             struct Connect {
                 username: String,
@@ -94,8 +94,8 @@ async fn websocket(ws: WebSocket, state: Arc<Mutex<GameState>>) {
                 tx = Some(gamestate.tx.clone());
 
                 println!("gamestate.players {:?}", gamestate.players);
-                if !gamestate.players.contains(&connect.username) {
-                    gamestate.players.insert(connect.username.to_owned());
+                if !gamestate.players.contains_key(&connect.username) {
+                    gamestate.add_player(connect.username.to_owned());
                     username = connect.username;
                 }
                 println!("After gamstate.players {:?}", gamestate.players);
@@ -133,15 +133,32 @@ async fn websocket(ws: WebSocket, state: Arc<Mutex<GameState>>) {
     });
 
     let mut recv_task = {
-        // Clone things we want to pass to the receiving task.
         let tx = tx.clone();
-
-        // This task will receive messages from client and send them to broadcast subscribers.
+        let state = state.clone();
+        let username = username.clone();
         tokio::spawn(async move {
             while let Some(Ok(Message::Text(text))) = reciever.next().await {
-                if tx.send(text).is_err() {
-                    break;
+                println!("Message received from client: {:?}", text);
+                #[derive(Deserialize, Debug)]
+                struct WordSubmission {
+                    word: String,
                 }
+
+                match serde_json::from_str::<WordSubmission>(&text) {
+                    Ok(word_submission) => {
+                        println!("word submission: {:?}", word_submission);
+                        let mut gamestate = state.lock().await;
+                        gamestate.submit_word(&username, &word_submission.word);
+                    }
+                    Err(error) => {
+                        println!("Failed to parse word message: {error}");
+                        let _ = tx.send(String::from("Failed to parse connect message"));
+                        break;
+                    }
+                }
+                // if tx.send(text).is_err() {
+                //     break;
+                // }
             }
         })
     };
@@ -156,6 +173,9 @@ async fn websocket(ws: WebSocket, state: Arc<Mutex<GameState>>) {
     let mut gamestate = state.lock().await;
 
     gamestate.players.remove(&username);
+    if gamestate.players.is_empty() {
+        gamestate.set_state_to_starting().await;
+    }
 }
 
 async fn new_game_handler(
@@ -167,18 +187,18 @@ async fn new_game_handler(
     (StatusCode::NO_CONTENT, ())
 }
 
-async fn submit_word_handler(
-    Extension(gamestate): Extension<Arc<Mutex<GameState>>>,
-    Form(word_data): Form<HashMap<String, String>>,
-) -> impl IntoResponse {
-    let mut gamestate = gamestate.lock().await;
-    let submitted_word = match word_data.get("word") {
-        Some(word) => word.to_owned(),
-        None => String::new(), // Provide a default empty String if word does not exist
-    };
-    gamestate.submit_word(&submitted_word); // Reset the game state
-    (StatusCode::NO_CONTENT, ())
-}
+// async fn submit_word_handler(
+//     Extension(gamestate): Extension<Arc<Mutex<GameState>>>,
+//     Form(word_data): Form<HashMap<String, String>>,
+// ) -> impl IntoResponse {
+//     let mut gamestate = gamestate.lock().await;
+//     let submitted_word = match word_data.get("word") {
+//         Some(word) => word.to_owned(),
+//         None => String::new(), // Provide a default empty String if word does not exist
+//     };
+//     // gamestate.submit_word(&submitted_word); // Reset the game state
+//     (StatusCode::NO_CONTENT, ())
+// }
 
 async fn serve_boggle_board() -> Html<String> {
     let markup = html! {
