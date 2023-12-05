@@ -1,7 +1,8 @@
 pub mod boggle_render {
+    use crate::boggle::BoggleBoard;
+    use crate::player_state::PlayerState;
     use maud::{html, PreEscaped};
-
-    use crate::boggle::BoggleBoard; // Import your BoggleBoard definition
+    use std::collections::HashMap; // Import your BoggleBoard definition
 
     pub fn render_timer(time_remaining: &str) -> String {
         html! {
@@ -107,7 +108,14 @@ pub mod boggle_render {
         .into_string()
     }
 
-    pub fn render_gameover_state(board: &Option<BoggleBoard>) -> String {
+    pub fn render_gameover_state(
+        board: &Option<BoggleBoard>,
+        players: &HashMap<String, PlayerState>,
+    ) -> String {
+        // Sort players by score in descending order
+        let mut sorted_players: Vec<_> = players.iter().collect();
+        sorted_players.sort_by(|a, b| b.1.score.cmp(&a.1.score));
+
         html! {
             div id="game_timer" {
                 (PreEscaped(render_new_game_button()))
@@ -115,9 +123,27 @@ pub mod boggle_render {
             div id="game-board" {
                 (PreEscaped(render_board(&board)))
             }
-            div id="word-input" {}
+            div id="word-input" {
+                (PreEscaped(render_player_scores(&sorted_players)))
+            }
             div id="valid-words" {
                 (PreEscaped(render_valid_words(board)))
+            }
+        }
+        .into_string()
+    }
+
+    fn render_player_scores(sorted_players: &[(&String, &PlayerState)]) -> String {
+        html! {
+            ul {
+                @for (player_name, player) in sorted_players {
+                    li {
+                        div class="player-container" {
+                            span class="player-name" { (player_name) }
+                            span class="player-score" { (player.score) }
+                        }
+                    }
+                }
             }
         }
         .into_string()

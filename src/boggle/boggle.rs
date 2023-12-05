@@ -96,4 +96,14 @@ impl BoggleBoard {
         current_word.pop();
         visited[i][j] = false;
     }
+
+    pub fn calculate_score(word_length: usize) -> u32 {
+        match word_length {
+            3 | 4 => 1,
+            5 => 2,
+            6 => 3,
+            7 => 5,
+            _ => 11,
+        }
+    }
 }

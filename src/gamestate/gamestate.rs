@@ -88,7 +88,7 @@ impl GameState {
             }
             GameStateEnum::GameOver => {
                 println!("Game Over");
-                boggle_render::render_gameover_state(&self.board)
+                boggle_render::render_gameover_state(&self.board, &self.players)
             }
         }
     }
@@ -110,9 +110,18 @@ impl GameState {
         }
     }
 
-    fn game_over(&self) {
-        let game_over_html = boggle_render::render_gameover_state(&self.board);
+    fn game_over(&mut self) {
+        self.total_scores();
+        let game_over_html = boggle_render::render_gameover_state(&self.board, &self.players);
+        //total the players word lists
         self.broadcast_state(game_over_html);
+    }
+
+    fn total_scores(&mut self) {
+        let valid_words = &self.board.as_ref().unwrap().valid_words;
+        for player in self.players.values_mut() {
+            player.score_words(valid_words);
+        }
     }
 
     //submit_word function checks if the word is possible in the board and adds it to the players
@@ -120,7 +129,7 @@ impl GameState {
 
     pub fn submit_word(&mut self, username: &str, word: &str) {
         println!("Made it to submit_word");
-        let sanitized_word = word.trim().to_lowercase(); // Trim and convert to lowercase
+        let sanitized_word = word.trim().to_uppercase();
 
         // Check if the word contains spaces or non-alphabetic characters
         if sanitized_word.contains(' ') || sanitized_word.chars().any(|c| !c.is_alphabetic()) {
