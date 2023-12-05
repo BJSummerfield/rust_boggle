@@ -186,19 +186,6 @@ async fn new_game_handler(
     (StatusCode::NO_CONTENT, ())
 }
 
-// async fn submit_word_handler(
-//     Extension(gamestate): Extension<Arc<Mutex<GameState>>>,
-//     Form(word_data): Form<HashMap<String, String>>,
-// ) -> impl IntoResponse {
-//     let mut gamestate = gamestate.lock().await;
-//     let submitted_word = match word_data.get("word") {
-//         Some(word) => word.to_owned(),
-//         None => String::new(), // Provide a default empty String if word does not exist
-//     };
-//     // gamestate.submit_word(&submitted_word); // Reset the game state
-//     (StatusCode::NO_CONTENT, ())
-// }
-
 async fn serve_boggle_board() -> Html<String> {
     let markup = html! {
         (maud::DOCTYPE)
