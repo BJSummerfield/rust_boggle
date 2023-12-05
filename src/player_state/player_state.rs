@@ -1,14 +1,18 @@
+use axum::extract::ws::Message;
+use tokio::sync::mpsc::UnboundedSender;
 #[derive(Debug, Clone)]
 pub struct PlayerState {
     pub found_words: Vec<String>,
     pub score: u32,
+    pub sender: UnboundedSender<Message>,
 }
 
 impl PlayerState {
-    pub fn new() -> Self {
+    pub fn new(sender: UnboundedSender<Message>) -> Self {
         Self {
             found_words: Vec::new(),
             score: 0,
+            sender,
         }
     }
 

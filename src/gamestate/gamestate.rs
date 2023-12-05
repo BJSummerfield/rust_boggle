@@ -1,10 +1,11 @@
 // use std::collections::HashSet;
-use std::{collections::HashMap, sync::Arc, time::Duration};
-use tokio::sync::{broadcast, Mutex, Notify};
-
 use crate::boggle::BoggleBoard;
 use crate::dictionary::Dictionary;
 use crate::player_state::PlayerState;
+use axum::extract::ws::Message;
+use std::{collections::HashMap, sync::Arc, time::Duration};
+use tokio::sync::mpsc::UnboundedSender;
+use tokio::sync::{broadcast, Mutex, Notify};
 
 use super::boggle_render::*;
 //
@@ -47,7 +48,7 @@ impl GameState {
             dictionary,
             game_channel_tx,
             state: GameStateEnum::Starting,
-            timer: 180,
+            timer: 10,
             timer_cancel_token,
             tx,
         }));
@@ -67,8 +68,8 @@ impl GameState {
         }
     }
 
-    pub fn add_player(&mut self, name: String) {
-        self.players.entry(name).or_insert(PlayerState::new());
+    pub fn add_player(&mut self, name: String, sender: UnboundedSender<Message>) {
+        self.players.entry(name).or_insert(PlayerState::new(sender));
     }
 
     pub async fn get_new_user(&self) -> String {
@@ -134,10 +135,19 @@ impl GameState {
         }
 
         if let Some(player_state) = self.players.get_mut(username) {
-            player_state.add_word(sanitized_word);
+            player_state.add_word(sanitized_word); // Add word to player's state
             println!("Player state: {:?}", player_state.found_words);
+
+            // Render the HTML for the submitted word
             let submit_word_html = boggle_render::render_word_submit(&player_state.found_words);
-            self.broadcast_state(submit_word_html);
+
+            // Send the HTML to the specific player
+            if let Err(e) = player_state
+                .sender
+                .send(axum::extract::ws::Message::Text(submit_word_html))
+            {
+                println!("Failed to send submit word HTML to player: {}", e);
+            }
         } else {
             println!("Username not found: {}", username);
         }

@@ -6,16 +6,14 @@ use axum::{
     http::StatusCode,
     response::{Html, IntoResponse},
     routing::{get, post},
-    Extension, Form, Router,
+    Extension, Router,
 };
 use futures::{sink::SinkExt, stream::StreamExt};
 use maud::html;
-use std::{collections::HashMap, net::SocketAddr, sync::Arc};
-use tower_http::services::ServeDir;
-
-use tokio::sync::{broadcast, Mutex};
-
 use serde::Deserialize;
+use std::{net::SocketAddr, sync::Arc};
+use tokio::sync::Mutex;
+use tower_http::services::ServeDir;
 
 mod boggle;
 mod dictionary;
@@ -55,90 +53,95 @@ async fn websocket_handler(
     println!("Websocket connection received");
     ws.on_upgrade(|socket| websocket(socket, state))
 }
-// websocket function for handling sending websocket messages to clients
-async fn websocket(ws: WebSocket, state: Arc<Mutex<GameState>>) {
-    let (mut sender, mut reciever) = ws.split();
-    println!("Websocket connection established");
 
-    let new_user_html = { state.lock().await.get_new_user().await };
-    let _ = sender.send(Message::Text(new_user_html)).await;
-    let mut tx = None::<broadcast::Sender<String>>;
+async fn websocket(ws: WebSocket, state: Arc<Mutex<GameState>>) {
+    let (mut sender, mut receiver) = ws.split();
+    let (ws_sender, mut ws_receiver) = tokio::sync::mpsc::unbounded_channel::<Message>();
+
+    // Spawn a task for sending messages to the WebSocket
+    tokio::spawn(async move {
+        while let Some(message) = ws_receiver.recv().await {
+            if sender.send(message).await.is_err() {
+                println!("Error sending message to WebSocket");
+                break;
+            }
+        }
+    });
+
+    let new_user_html = state.lock().await.get_new_user().await;
+    if ws_sender.send(Message::Text(new_user_html)).is_err() {
+        println!("Failed to send new user HTML");
+    }
+
     let mut username = String::new();
 
-    while let Some(Ok(message)) = reciever.next().await {
-        println!("message received {:?} ", message);
+    // Main loop for handling incoming WebSocket messages
+    while let Some(Ok(message)) = receiver.next().await {
+        println!("initial message received");
         if let Message::Text(name) = message {
             #[derive(Deserialize, Debug)]
             struct Connect {
                 username: String,
             }
 
-            let connect: Connect = match serde_json::from_str(&name) {
-                Ok(connect) => connect,
+            match serde_json::from_str::<Connect>(&name) {
+                Ok(connect) => {
+                    let mut gamestate = state.lock().await;
+                    if !gamestate.players.contains_key(&connect.username) {
+                        gamestate.add_player(connect.username.clone(), ws_sender.clone());
+                        username = connect.username;
+                        println!("username: {}", username);
+                    } else {
+                        if ws_sender
+                            .send(Message::Text(format!("{} is taken", connect.username)))
+                            .is_err()
+                        {
+                            println!("Failed to notify that username is taken");
+                        }
+                        return;
+                    }
+                }
                 Err(error) => {
-                    println!("{error}");
-                    let _ = sender
-                        .send(Message::Text(String::from(
-                            "Failed to parse connect message",
-                        )))
-                        .await;
+                    println!("Failed to parse connect message: {error}");
+                    if ws_sender
+                        .send(Message::Text("Failed to parse connect message".to_string()))
+                        .is_err()
+                    {
+                        println!("Failed to send error message");
+                    }
                     break;
                 }
-            };
-            println!("connect here {:?}", connect);
-            // Scope to drop the mutex guard before the next await
-            {
-                // If username that is sent by client is not taken, fill username string.
-                let mut gamestate = state.lock().await;
-
-                tx = Some(gamestate.tx.clone());
-
-                println!("gamestate.players {:?}", gamestate.players);
-                if !gamestate.players.contains_key(&connect.username) {
-                    gamestate.add_player(connect.username.to_owned());
-                    username = connect.username;
-                }
-                println!("After gamstate.players {:?}", gamestate.players);
             }
 
-            // If not empty we want to quit the loop else we want to quit function.
-            if tx.is_some() && !username.is_empty() {
+            if !username.is_empty() {
                 break;
-            } else {
-                // Only send our client that username is taken.
-                let _ = sender
-                    .send(Message::Text(format!("{} is taken", username)))
-                    .await;
-
-                return;
             }
         }
     }
 
-    let tx = tx.unwrap();
+    let initial_game_state = state.lock().await.get_game_state().await;
+    if ws_sender.send(Message::Text(initial_game_state)).is_err() {
+        println!("Failed to send initial game state");
+    }
+
+    let tx = state.lock().await.tx.clone();
     let mut rx = tx.subscribe();
-    let msg = format!("{} joined.", username);
-    let _ = tx.send(msg);
 
-    let initial_game_state = { state.lock().await.get_game_state().await };
-    let _ = tx.send(initial_game_state).is_err();
-
+    let ws_sender_clone = ws_sender.clone();
     let mut send_task = tokio::spawn(async move {
         while let Ok(msg) = rx.recv().await {
-            // In any websocket error, break loop.
-            if sender.send(Message::Text(msg)).await.is_err() {
+            if ws_sender_clone.send(Message::Text(msg)).is_err() {
                 break;
             }
         }
     });
 
+    let username_clone = username.clone();
+    let ws_sender_clone = ws_sender.clone();
     let mut recv_task = {
-        let tx = tx.clone();
         let state = state.clone();
-        let username = username.clone();
         tokio::spawn(async move {
-            while let Some(Ok(Message::Text(text))) = reciever.next().await {
-                println!("Message received from client: {:?}", text);
+            while let Some(Ok(Message::Text(text))) = receiver.next().await {
                 #[derive(Deserialize, Debug)]
                 struct WordSubmission {
                     word: String,
@@ -146,19 +149,19 @@ async fn websocket(ws: WebSocket, state: Arc<Mutex<GameState>>) {
 
                 match serde_json::from_str::<WordSubmission>(&text) {
                     Ok(word_submission) => {
-                        println!("word submission: {:?}", word_submission);
                         let mut gamestate = state.lock().await;
-                        gamestate.submit_word(&username, &word_submission.word);
+                        gamestate.submit_word(&username_clone, &word_submission.word);
                     }
                     Err(error) => {
                         println!("Failed to parse word message: {error}");
-                        let _ = tx.send(String::from("Failed to parse connect message"));
-                        break;
+                        if ws_sender_clone
+                            .send(Message::Text("Failed to parse word message".to_string()))
+                            .is_err()
+                        {
+                            println!("Failed to send error message");
+                        }
                     }
                 }
-                // if tx.send(text).is_err() {
-                //     break;
-                // }
             }
         })
     };
@@ -168,16 +171,12 @@ async fn websocket(ws: WebSocket, state: Arc<Mutex<GameState>>) {
         _ = (&mut recv_task) => send_task.abort(),
     };
 
-    let msg = format!("{} left.", username);
-    let _ = tx.send(msg);
     let mut gamestate = state.lock().await;
-
     gamestate.players.remove(&username);
     if gamestate.players.is_empty() {
         gamestate.set_state_to_starting().await;
     }
 }
-
 async fn new_game_handler(
     Extension(gamestate): Extension<Arc<Mutex<GameState>>>,
 ) -> impl IntoResponse {
