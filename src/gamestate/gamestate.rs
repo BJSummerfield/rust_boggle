@@ -138,7 +138,7 @@ impl GameState {
         }
 
         // Check word length constraints
-        if sanitized_word.len() < 2 || sanitized_word.len() > 16 {
+        if sanitized_word.len() <= 2 || sanitized_word.len() > 16 {
             println!("Word length constraints not met.");
             return;
         }
@@ -163,8 +163,16 @@ impl GameState {
     }
 
     pub async fn set_state_to_starting(&mut self) {
-        self.state = GameStateEnum::Starting;
-        self.cancel_timer();
+        match self.state {
+            GameStateEnum::Starting => (),
+            GameStateEnum::InProgress => {
+                self.cancel_timer();
+                self.state = GameStateEnum::Starting;
+            }
+            GameStateEnum::GameOver => {
+                self.state = GameStateEnum::Starting;
+            }
+        }
     }
 
     pub async fn start_game_loop(game_state: Arc<Mutex<Self>>) {

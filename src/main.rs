@@ -61,8 +61,8 @@ async fn websocket(ws: WebSocket, state: Arc<Mutex<GameState>>) {
     // Spawn a task for sending messages to the WebSocket
     tokio::spawn(async move {
         while let Some(message) = ws_receiver.recv().await {
-            if sender.send(message).await.is_err() {
-                println!("Error sending message to WebSocket");
+            if let Err(error) = sender.send(message).await {
+                println!("Error sending message to WebSocket: {:?}", error);
                 break;
             }
         }
@@ -172,8 +172,10 @@ async fn websocket(ws: WebSocket, state: Arc<Mutex<GameState>>) {
     };
 
     let mut gamestate = state.lock().await;
+    println!("Removing player: {}", username);
     gamestate.players.remove(&username);
     if gamestate.players.is_empty() {
+        println!("No more players, resetting game state");
         gamestate.set_state_to_starting().await;
     }
 }
