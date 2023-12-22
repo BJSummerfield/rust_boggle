@@ -48,7 +48,7 @@ impl GameState {
             dictionary,
             game_channel_tx,
             state: GameStateEnum::Starting,
-            timer: 10,
+            timer: 1,
             timer_cancel_token,
             tx,
         }));

@@ -65,14 +65,14 @@ impl BoggleBoard {
         let ch = self.board[i][j];
         current_word.push(ch);
 
+        // Check for 'Q' and handle as both 'Q' and 'QU'
         if ch == 'Q' {
-            // Treat 'Q' as 'Qu'
-            current_word.push('u');
-            self.search_and_branch(i, j, visited, current_word);
-            current_word.pop(); // Backtrack 'u'
+            self.check_for_word(i, j, visited, current_word); // Check for 'Q'
+            current_word.push('U');
+            self.check_for_word(i, j, visited, current_word); // Check for 'QU'
+            current_word.pop(); // Remove 'U' after checking
         } else {
-            // Normal processing
-            self.search_and_branch(i, j, visited, current_word);
+            self.check_for_word(i, j, visited, current_word); // Normal processing
         }
 
         // Backtrack
@@ -80,7 +80,7 @@ impl BoggleBoard {
         visited[i][j] = false;
     }
 
-    fn search_and_branch(
+    fn check_for_word(
         &mut self,
         i: usize,
         j: usize,
@@ -93,21 +93,37 @@ impl BoggleBoard {
                 if !self.valid_words.iter().any(|(w, _)| w == &word) {
                     self.valid_words.push((word, definition));
                 }
+                // Continue search even after finding a valid word
+                self.continue_search(i, j, visited, current_word);
             }
             SearchResult::ValidPrefix => {
-                let row_offsets = [-1, -1, -1, 0, 0, 1, 1, 1];
-                let col_offsets = [-1, 0, 1, -1, 1, -1, 0, 1];
-
-                for k in 0..8 {
-                    let new_i = i as isize + row_offsets[k];
-                    let new_j = j as isize + col_offsets[k];
-                    if new_i >= 0 && new_i < SIZE as isize && new_j >= 0 && new_j < SIZE as isize {
-                        self.dfs(new_i as usize, new_j as usize, visited, current_word);
-                    }
-                }
+                // Continue search for a valid prefix
+                self.continue_search(i, j, visited, current_word);
             }
             SearchResult::NotFound => {
+                // Stop search if not found
                 return;
+            }
+        }
+    }
+
+    fn continue_search(
+        &mut self,
+        i: usize,
+        j: usize,
+        visited: &mut Vec<Vec<bool>>,
+        current_word: &mut String,
+    ) {
+        // Define the neighbor offsets
+        let row_offsets = [-1, -1, -1, 0, 0, 1, 1, 1];
+        let col_offsets = [-1, 0, 1, -1, 1, -1, 0, 1];
+
+        // Iterate over all possible neighbors
+        for k in 0..8 {
+            let new_i = i as isize + row_offsets[k];
+            let new_j = j as isize + col_offsets[k];
+            if new_i >= 0 && new_i < SIZE as isize && new_j >= 0 && new_j < SIZE as isize {
+                self.dfs(new_i as usize, new_j as usize, visited, current_word);
             }
         }
     }
