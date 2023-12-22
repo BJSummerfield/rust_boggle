@@ -157,3 +157,9 @@ h1 {
     left: 0;
     width: max-content;
 }
+
+.player-container {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 10px;
+}

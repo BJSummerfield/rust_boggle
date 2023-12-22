@@ -139,8 +139,7 @@ pub mod boggle_render {
                 @for (player_name, player) in sorted_players {
                     li {
                         div class="player-container" {
-                            span class="player-name" { (player_name) }
-                            span class="player-score" { (player.score) }
+                            (player_name) ": " (player.score)
                         }
                     }
                 }
@@ -153,13 +152,11 @@ pub mod boggle_render {
         html! {
             @if let Some(board) = board_option {
                 @for row in &board.board {
-                    // div class="board-row" {
-                        @for &letter in row {
-                            div class="board-cell" {
-                                (letter)
-                            }
+                    @for &letter in row {
+                        div class="board-cell" {
+                            (letter)
                         }
-                    // }
+                    }
                 }
             }
         }

@@ -62,8 +62,31 @@ impl BoggleBoard {
         }
 
         visited[i][j] = true;
-        current_word.push(self.board[i][j]);
+        let ch = self.board[i][j];
+        current_word.push(ch);
 
+        if ch == 'Q' {
+            // Treat 'Q' as 'Qu'
+            current_word.push('u');
+            self.search_and_branch(i, j, visited, current_word);
+            current_word.pop(); // Backtrack 'u'
+        } else {
+            // Normal processing
+            self.search_and_branch(i, j, visited, current_word);
+        }
+
+        // Backtrack
+        current_word.pop();
+        visited[i][j] = false;
+    }
+
+    fn search_and_branch(
+        &mut self,
+        i: usize,
+        j: usize,
+        visited: &mut Vec<Vec<bool>>,
+        current_word: &mut String,
+    ) {
         match self.dictionary.search(&current_word.to_lowercase()) {
             SearchResult::ValidWord(definition) => {
                 let word = current_word.clone();
@@ -72,7 +95,6 @@ impl BoggleBoard {
                 }
             }
             SearchResult::ValidPrefix => {
-                // Explore all 8 adjacent cells
                 let row_offsets = [-1, -1, -1, 0, 0, 1, 1, 1];
                 let col_offsets = [-1, 0, 1, -1, 1, -1, 0, 1];
 
@@ -85,16 +107,9 @@ impl BoggleBoard {
                 }
             }
             SearchResult::NotFound => {
-                // Early return since the path won't lead to a valid word
-                current_word.pop();
-                visited[i][j] = false;
                 return;
             }
         }
-
-        // Backtrack
-        current_word.pop();
-        visited[i][j] = false;
     }
 
     pub fn calculate_score(word_length: usize) -> u32 {
