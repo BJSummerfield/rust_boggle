@@ -135,12 +135,11 @@ pub mod boggle_render {
 
     fn render_player_scores(sorted_players: &[(&String, &PlayerState)]) -> String {
         html! {
-            ul {
-                @for (player_name, player) in sorted_players {
-                    li {
-                        div class="player-container" {
-                            (player_name) ": " (player.score)
-                        }
+            @for (player_name, player) in sorted_players {
+                form action="/get_player_score" method="post" hx-post="/get_score" hx-trigger="click" hx-target="#valid-words" {
+                    input type="hidden" name="username" value=(player_name) {}
+                    div class="player-container"  {
+                        (player_name) ": " (player.score)
                     }
                 }
             }

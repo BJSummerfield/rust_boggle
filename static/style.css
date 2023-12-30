@@ -95,6 +95,7 @@ h1 {
     margin: 20px 0;
     display: flex;
     justify-content: center;
+    flex-direction: column;
 }
 
 #word-input input {

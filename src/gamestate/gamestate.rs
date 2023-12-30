@@ -3,6 +3,8 @@ use crate::boggle::BoggleBoard;
 use crate::dictionary::Dictionary;
 use crate::player_state::PlayerState;
 use axum::extract::ws::Message;
+
+use maud::html;
 use std::{collections::HashMap, sync::Arc, time::Duration};
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::{broadcast, Mutex, Notify};
@@ -195,6 +197,25 @@ impl GameState {
                     }
                 },
             }
+        }
+    }
+
+    pub async fn get_player_score(&self, username: &str) -> String {
+        if let Some(player_state) = self.players.get(username) {
+            let score = player_state.score;
+            let markup = html! {
+                div {
+                    h1 { "Player score: " (score) }
+                }
+            };
+            markup.into_string()
+        } else {
+            let markup = html! {
+                div {
+                    h1 { "Username not found: " (username) }
+                }
+            };
+            markup.into_string()
         }
     }
 

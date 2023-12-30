@@ -1,7 +1,7 @@
 use axum::{
     extract::{
         ws::{Message, WebSocket, WebSocketUpgrade},
-        State,
+        Form, State,
     },
     http::StatusCode,
     response::{Html, IntoResponse},
@@ -28,6 +28,7 @@ async fn main() {
     let app = Router::new()
         .route("/", get(serve_boggle_board))
         .route("/new_game", post(new_game_handler))
+        .route("/get_score", post(get_player_score_handler))
         // .route("/submit_word", post(submit_word_handler))
         .layer(Extension(Arc::clone(&game_state)))
         // Serve static files from the `static` directory
@@ -178,6 +179,20 @@ async fn websocket(ws: WebSocket, state: Arc<Mutex<GameState>>) {
         println!("No more players, resetting game state");
         gamestate.set_state_to_starting().await;
     }
+}
+
+#[derive(serde::Deserialize)]
+pub struct PlayerName {
+    pub username: String,
+}
+async fn get_player_score_handler(
+    Extension(gamestate): Extension<Arc<Mutex<GameState>>>,
+    Form(PlayerName { username }): Form<PlayerName>,
+) -> impl IntoResponse {
+    let gamestate = gamestate.lock().await;
+    let player_score_html = gamestate.get_player_score(&username).await;
+
+    Html(player_score_html).into_response()
 }
 async fn new_game_handler(
     Extension(gamestate): Extension<Arc<Mutex<GameState>>>,
