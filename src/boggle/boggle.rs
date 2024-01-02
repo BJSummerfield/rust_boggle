@@ -20,7 +20,7 @@ pub struct BoggleBoard {
 
 impl BoggleBoard {
     // Generate a new Boggle board
-    pub fn new(dictionary: Arc<Dictionary>) -> Self {
+    pub fn new(dictionary: &Arc<Dictionary>) -> Self {
         let mut rng = rand::thread_rng();
         let mut dice = DICE;
         dice.shuffle(&mut rng);
@@ -37,7 +37,7 @@ impl BoggleBoard {
 
         let mut boggle_board = BoggleBoard {
             board,
-            dictionary,
+            dictionary: dictionary.clone(),
             valid_words: Vec::new(),
         };
 

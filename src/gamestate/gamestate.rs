@@ -24,7 +24,7 @@ pub enum GameStateEnum {
 pub struct GameState {
     pub players: HashMap<String, PlayerState>,
     state: GameStateEnum,
-    board: Option<BoggleBoard>,
+    board: BoggleBoard,
     dictionary: Arc<Dictionary>,
     timer: u32,
     timer_cancel_token: Arc<Notify>,
@@ -46,11 +46,11 @@ impl GameState {
         let timer_cancel_token = Arc::new(Notify::new());
         let game_state = Arc::new(Mutex::new(Self {
             players: HashMap::new(),
-            board: None,
+            board: BoggleBoard::new(&dictionary),
             dictionary,
             game_channel_tx,
             state: GameStateEnum::Starting,
-            timer: 1,
+            timer: 10,
             timer_cancel_token,
             tx,
         }));
@@ -103,7 +103,7 @@ impl GameState {
                 self.start_timer();
 
                 self.state = GameStateEnum::InProgress;
-                self.board = Some(BoggleBoard::new(Arc::clone(&self.dictionary)));
+                self.board = BoggleBoard::new(&self.dictionary);
 
                 let inprogress_html =
                     boggle_render::render_inprogress_state(&self.timer.to_string(), &self.board);
@@ -120,7 +120,7 @@ impl GameState {
     }
 
     fn total_scores(&mut self) {
-        let valid_words = &self.board.as_ref().unwrap().valid_words;
+        let valid_words = &self.board.valid_words;
         for player in self.players.values_mut() {
             player.score_words(valid_words);
         }

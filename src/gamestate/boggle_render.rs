@@ -70,7 +70,7 @@ pub mod boggle_render {
         .into_string()
     }
 
-    pub fn render_inprogress_state(timer: &str, board: &Option<BoggleBoard>) -> String {
+    pub fn render_inprogress_state(timer: &str, board: &BoggleBoard) -> String {
         html! {
             div id="game_timer" {
             (timer)
@@ -109,7 +109,7 @@ pub mod boggle_render {
     }
 
     pub fn render_gameover_state(
-        board: &Option<BoggleBoard>,
+        board: &BoggleBoard,
         players: &HashMap<String, PlayerState>,
     ) -> String {
         // Sort players by score in descending order
@@ -127,7 +127,7 @@ pub mod boggle_render {
                 (PreEscaped(render_player_scores(&sorted_players)))
             }
             div id="valid-words" {
-                (PreEscaped(render_valid_words(board)))
+                (PreEscaped(render_valid_words(&board)))
             }
         }
         .into_string()
@@ -147,14 +147,12 @@ pub mod boggle_render {
         .into_string()
     }
 
-    fn render_board(board_option: &Option<BoggleBoard>) -> String {
+    fn render_board(board: &BoggleBoard) -> String {
         html! {
-            @if let Some(board) = board_option {
-                @for row in &board.board {
-                    @for &letter in row {
-                        div class="board-cell" {
-                            (letter)
-                        }
+            @for row in &board.board {
+                @for &letter in row {
+                    div class="board-cell" {
+                        (letter)
                     }
                 }
             }
@@ -162,9 +160,8 @@ pub mod boggle_render {
         .into_string()
     }
 
-    fn render_valid_words(board_option: &Option<BoggleBoard>) -> String {
+    fn render_valid_words(board: &BoggleBoard) -> String {
         html! {
-        @if let Some(ref board) = board_option {
                ul {
                        @for (word, definition) in &board.valid_words {
                            li {
@@ -174,7 +171,6 @@ pub mod boggle_render {
                                }
                            }
                        }
-                   }
                }
         }
         .into_string()
