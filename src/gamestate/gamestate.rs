@@ -50,7 +50,7 @@ impl GameState {
             dictionary,
             game_channel_tx,
             state: GameStateEnum::Starting,
-            timer: 10,
+            timer: 180,
             timer_cancel_token,
             tx,
         }));
@@ -66,6 +66,7 @@ impl GameState {
     fn clear_playerstates(&mut self) {
         for (_, player) in self.players.iter_mut() {
             player.found_words.clear();
+            player.valid_words.clear();
             player.score = 0;
         }
     }
@@ -201,21 +202,22 @@ impl GameState {
     }
 
     pub async fn get_player_score(&self, username: &str) -> String {
-        if let Some(player_state) = self.players.get(username) {
-            let score = player_state.score;
-            let markup = html! {
-                div {
-                    h1 { "Player score: " (score) }
+        match username {
+            "Board Total" => {
+                // Assuming self.board is accessible and has a field valid_words
+                boggle_render::render_valid_words(&self.board.valid_words)
+            }
+            _ => match self.players.get(username) {
+                Some(player_state) => boggle_render::render_valid_words(&player_state.valid_words),
+                None => {
+                    let markup = html! {
+                        div {
+                            "Username not found: " (username)
+                        }
+                    };
+                    markup.into_string()
                 }
-            };
-            markup.into_string()
-        } else {
-            let markup = html! {
-                div {
-                    h1 { "Username not found: " (username) }
-                }
-            };
-            markup.into_string()
+            },
         }
     }
 

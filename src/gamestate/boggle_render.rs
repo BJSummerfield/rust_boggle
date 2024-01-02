@@ -124,23 +124,34 @@ pub mod boggle_render {
                 (PreEscaped(render_board(&board)))
             }
             div id="word-input" {
-                (PreEscaped(render_player_scores(&sorted_players)))
+                (PreEscaped(render_player_scores(&board, &sorted_players)))
             }
             div id="valid-words" {
-                (PreEscaped(render_valid_words(&board)))
+                (PreEscaped(render_valid_words(&board.valid_words)))
             }
         }
         .into_string()
     }
 
-    fn render_player_scores(sorted_players: &[(&String, &PlayerState)]) -> String {
+    fn render_player_scores(
+        board: &BoggleBoard,
+        sorted_players: &[(&String, &PlayerState)],
+    ) -> String {
         html! {
+            (PreEscaped(render_scores("Board Total".to_string(), board.total_score.to_string())))
             @for (player_name, player) in sorted_players {
-                form action="/get_player_score" method="post" hx-post="/get_score" hx-trigger="click" hx-target="#valid-words" {
-                    input type="hidden" name="username" value=(player_name) {}
-                    div class="player-container"  {
-                        (player_name) ": " (player.score)
-                    }
+                (PreEscaped(render_scores(player_name.to_string(), player.score.to_string())))
+            }
+        }
+        .into_string()
+    }
+
+    fn render_scores(name: String, score: String) -> String {
+        html! {
+            form action="/get_player_score" method="post" hx-post="/get_score" hx-trigger="click" hx-target="#valid-words" {
+                input type="hidden" name="username" value=(name) {}
+                div class="player-container"  {
+                    (name) ": " (score)
                 }
             }
         }
@@ -160,10 +171,10 @@ pub mod boggle_render {
         .into_string()
     }
 
-    fn render_valid_words(board: &BoggleBoard) -> String {
+    pub fn render_valid_words(word_list: &Vec<(String, String)>) -> String {
         html! {
                ul {
-                       @for (word, definition) in &board.valid_words {
+                       @for (word, definition) in word_list {
                            li {
                                div class="word-container" {
                                    span class="word" { (word) }

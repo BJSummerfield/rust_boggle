@@ -194,6 +194,7 @@ async fn get_player_score_handler(
 
     Html(player_score_html).into_response()
 }
+
 async fn new_game_handler(
     Extension(gamestate): Extension<Arc<Mutex<GameState>>>,
 ) -> impl IntoResponse {

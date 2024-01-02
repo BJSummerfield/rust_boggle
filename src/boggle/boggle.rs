@@ -16,6 +16,7 @@ pub struct BoggleBoard {
     pub board: Vec<Vec<char>>,
     dictionary: Arc<Dictionary>,
     pub valid_words: Vec<(String, String)>,
+    pub total_score: u32,
 }
 
 impl BoggleBoard {
@@ -39,9 +40,15 @@ impl BoggleBoard {
             board,
             dictionary: dictionary.clone(),
             valid_words: Vec::new(),
+            total_score: 0,
         };
 
         boggle_board.find_valid_words();
+
+        for (word, _) in &boggle_board.valid_words {
+            boggle_board.total_score += BoggleBoard::calculate_score(word.len());
+        }
+
         boggle_board
     }
 

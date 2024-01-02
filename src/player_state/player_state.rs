@@ -7,6 +7,7 @@ pub struct PlayerState {
     pub found_words: Vec<String>,
     pub score: u32,
     pub sender: UnboundedSender<Message>,
+    pub valid_words: Vec<(String, String)>,
 }
 
 impl PlayerState {
@@ -15,6 +16,7 @@ impl PlayerState {
             found_words: Vec::new(),
             score: 0,
             sender,
+            valid_words: Vec::new(),
         }
     }
 
@@ -24,10 +26,12 @@ impl PlayerState {
         }
     }
 
-    pub fn score_words(&mut self, valid_words: &[(String, String)]) {
+    pub fn score_words(&mut self, boggle_words: &[(String, String)]) {
         for word in &self.found_words {
-            if valid_words.iter().map(|(w, _)| w).any(|w| w == word) {
+            if let Some((found_word, definition)) = boggle_words.iter().find(|(w, _)| w == word) {
                 self.score += BoggleBoard::calculate_score(word.len());
+                self.valid_words
+                    .push((found_word.clone(), definition.clone()));
             }
         }
     }
