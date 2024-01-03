@@ -5,7 +5,7 @@ use crate::player_state::PlayerState;
 use axum::extract::ws::Message;
 
 use maud::html;
-use std::{collections::HashMap, sync::Arc, time::Duration};
+use std::{collections::HashMap, env, sync::Arc, time::Duration};
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::{broadcast, Mutex, Notify};
 
@@ -34,10 +34,10 @@ pub struct GameState {
 
 impl GameState {
     pub fn new() -> Arc<Mutex<Self>> {
-        let file_path = format!(
-            "{}/static/scrabble-dictionary.txt",
-            env!("CARGO_MANIFEST_DIR")
-        );
+        let styles_path =
+            env::var("STATIC_FILES_PATH").unwrap_or_else(|_| "/app/static".to_string());
+        print!("{}", styles_path);
+        let file_path = format!("{}/scrabble-dictionary.txt", styles_path);
         let dictionary =
             Arc::new(Dictionary::new(&file_path).expect("Failed to create dictionary"));
 

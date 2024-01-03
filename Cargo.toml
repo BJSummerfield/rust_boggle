@@ -7,6 +7,7 @@ edition = "2021"
 
 [dependencies]
 axum = {version= "0.6.20", features = ["ws"]}
+dotenv = "0.15.0"
 futures = "0.3.29"
 maud = "0.25.0"
 rand = "0.8.5"

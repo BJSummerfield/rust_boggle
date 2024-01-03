@@ -11,7 +11,7 @@ use axum::{
 use futures::{sink::SinkExt, stream::StreamExt};
 use maud::html;
 use serde::Deserialize;
-use std::{net::SocketAddr, sync::Arc};
+use std::{env, net::SocketAddr, sync::Arc};
 use tokio::sync::Mutex;
 use tower_http::services::ServeDir;
 
@@ -23,8 +23,9 @@ use gamestate::GameState;
 
 #[tokio::main]
 async fn main() {
+    dotenv::dotenv().ok();
     let game_state = GameState::new();
-
+    let styles_path = env::var("STATIC_FILES_PATH").unwrap_or_else(|_| "/app/static".to_string());
     let app = Router::new()
         .route("/", get(serve_boggle_board))
         .route("/new_game", post(new_game_handler))
@@ -32,12 +33,12 @@ async fn main() {
         // .route("/submit_word", post(submit_word_handler))
         .layer(Extension(Arc::clone(&game_state)))
         // Serve static files from the `static` directory
-        .nest_service("/static", ServeDir::new("static"))
+        .nest_service("/static", ServeDir::new(styles_path))
         .route("/ws", get(websocket_handler))
         .with_state(game_state);
 
     // Bind to a socket address
-    let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
+    let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
     println!("Listening on {}", addr);
 
     // Run the server
