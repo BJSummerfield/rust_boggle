@@ -221,7 +221,7 @@ async fn serve_boggle_board() -> Html<String> {
             body hx-ext="ws" ws-connect="/ws" {
                 h1 { "Boggle Game" }
                 // div hx-ext="ws" ws-connect="/ws" {
-                    div id="game_timer" {}
+                    div id="game-timer" {}
                     div id="game-board" {}
                     div id="word-input" {}
                     div id="valid-words" {}

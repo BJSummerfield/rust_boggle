@@ -6,7 +6,7 @@ pub mod boggle_render {
 
     pub fn render_timer(time_remaining: &str) -> String {
         html! {
-            div id="game_timer" {
+            div id="game-timer" {
                 (time_remaining)
             }
         }
@@ -16,7 +16,7 @@ pub mod boggle_render {
     pub fn render_new_user() -> String {
         html! {
 
-            div id = "game_timer" {}
+            div id = "game-timer" {}
             div id="game-board" {}
             div id="word-input" {
                     input type="text"
@@ -59,7 +59,7 @@ pub mod boggle_render {
 
     pub fn render_starting_state() -> String {
         html! {
-            div id = "game_timer" {
+            div id = "game-timer" {
                 (PreEscaped(render_new_game_button()))
             }
             div id="game-board" {}
@@ -72,7 +72,7 @@ pub mod boggle_render {
 
     pub fn render_inprogress_state(timer: &str, board: &BoggleBoard) -> String {
         html! {
-            div id="game_timer" {
+            div id="game-timer" {
             (timer)
             }
             div id="game-board" {
@@ -117,7 +117,7 @@ pub mod boggle_render {
         sorted_players.sort_by(|a, b| b.1.score.cmp(&a.1.score));
 
         html! {
-            div id="game_timer" {
+            div id="game-timer" {
                 (PreEscaped(render_new_game_button()))
             }
             div id="game-board" {

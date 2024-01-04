@@ -2,7 +2,6 @@ body {
     font-family: 'Arial', sans-serif;
     background-color: black;
     color: #ddd;
-    margin: 0;
     padding: 20px;
     display: flex;
     flex-direction: column;
@@ -18,8 +17,17 @@ h1 {
     grid-template-columns: repeat(4, 1fr); 
     gap: 10px;
     padding: 20px;
-    max-width: 400px; 
-    margin: auto;
+}
+
+#game-timer {
+    font-size: 24px;
+    font-weight: bold;
+    /* margin-bottom: 20px; */
+    cursor: default;
+}
+
+#game-timer button {
+    cursor: pointer;
 }
 
 .board-cell {
@@ -33,12 +41,12 @@ h1 {
     font-size: 24px;
     font-weight: bold;
     color: black;
-    cursor: pointer;
+    cursor: default;
     transition: background-color 0.3s;
 }
 
 .board-cell:hover {
-    background-color: #f0f0f0;
+    background-color: #bbb;
 }
 
 @keyframes flipX {
@@ -49,11 +57,6 @@ h1 {
 @keyframes stretch {
     from { transform: scaleX(0); }
     to { transform: scaleX(1); }
-}
-
-@keyframes shrink {
-    from { transform: scaleX(1); }
-    to { transform: scaleX(0); }
 }
 
 .board-cell:nth-child(1) { animation: flipX 0.6s ease-out;  }
@@ -73,10 +76,6 @@ h1 {
 .board-cell:nth-child(15) { animation: flipX 0.9s ease-out; }
 .board-cell:nth-child(16) { animation: flipX 0.6s ease-out; }
 
-#word-input {
-    margin: 20px 0;
-}
-
 #word-input input[type="text"] {
     width: 158px; /* Width of two board cells plus gap */
     padding: 10px;
@@ -91,13 +90,6 @@ h1 {
 
 }
 
-#word-input {
-    margin: 20px 0;
-    display: flex;
-    justify-content: center;
-    flex-direction: column;
-}
-
 #word-input input {
     text-align: center;
 }
@@ -109,16 +101,6 @@ h1 {
 #word-input.removed input[type="text"] {
     animation: shrink 0.5s forwards; /* Shrink effect */
     transform-origin: center; /* Ensures shrinking towards the left */
-}
-
-#score-board {
-    padding: 20px;
-    background-color: #333;
-    border: 1px solid #ddd;
-    width: 100%;
-    max-width: 400px;
-    margin-top: 20px;
-    color: #ddd;
 }
 
 #valid-words {
@@ -146,6 +128,7 @@ h1 {
     visibility: visible;
 }
 
+
 .definition {
     visibility: hidden;
     position: absolute;
@@ -155,12 +138,15 @@ h1 {
     padding: 5px;
     z-index: 100;
     top: 100%;
-    left: 0;
-    width: max-content;
+    left: 100%; 
+    transform: translateX(-100%); /* Shift back to align with the left edge */
+    max-width: calc(100vw); 
 }
+
 
 .player-container {
     display: flex;
     justify-content: space-between;
-    margin-bottom: 10px;
+    padding: 3px;
+    cursor: pointer;
 }

@@ -87,7 +87,12 @@ impl GameState {
             }
             GameStateEnum::InProgress => {
                 println!("In Progress");
-                boggle_render::render_inprogress_state(&self.timer.to_string(), &self.board)
+
+                let minutes = *&self.timer / 60;
+                let seconds = *&self.timer % 60;
+
+                let fmt_timer = format!("{}:{:02}", minutes, seconds);
+                boggle_render::render_inprogress_state(&fmt_timer, &self.board)
             }
             GameStateEnum::GameOver => {
                 println!("Game Over");
@@ -106,8 +111,12 @@ impl GameState {
                 self.state = GameStateEnum::InProgress;
                 self.board = BoggleBoard::new(&self.dictionary);
 
+                let minutes = *&self.timer / 60;
+                let seconds = *&self.timer % 60;
+
+                let fmt_timer = format!("{}:{:02}", minutes, seconds);
                 let inprogress_html =
-                    boggle_render::render_inprogress_state(&self.timer.to_string(), &self.board);
+                    boggle_render::render_inprogress_state(&fmt_timer, &self.board);
                 self.broadcast_state(inprogress_html);
             }
         }
