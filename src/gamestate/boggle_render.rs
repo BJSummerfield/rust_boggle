@@ -97,7 +97,7 @@ pub mod boggle_render {
                        li {
                            div class="word-container" {
                                span class="word" { (word) }
-                               span clas="definition" {}
+                               span class="definition" {}
                            }
                        }
                    }
