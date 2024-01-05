@@ -1,10 +1,13 @@
-pub mod boggle_render {
-    use crate::boggle::BoggleBoard;
-    use crate::player_state::PlayerState;
-    use maud::{html, PreEscaped};
-    use std::collections::HashMap; // Import your BoggleBoard definition
+use crate::boggle::BoggleBoard;
+use crate::player_state::PlayerState;
+use axum::response::Html;
+use maud::{html, PreEscaped};
+use std::collections::HashMap;
 
-    pub fn render_timer(time_remaining: &str) -> String {
+pub struct Render {}
+
+impl Render {
+    pub fn timer(time_remaining: &str) -> String {
         html! {
             div id="game-timer" {
                 (time_remaining)
@@ -13,7 +16,7 @@ pub mod boggle_render {
         .into_string()
     }
 
-    pub fn render_new_user() -> String {
+    pub fn new_user() -> String {
         html! {
 
             div id = "game-timer" {}
@@ -31,7 +34,7 @@ pub mod boggle_render {
         .into_string()
     }
 
-    fn render_new_game_button() -> String {
+    fn new_game_button() -> String {
         html! {
             form hx-post="/new_game" {
                 button type="submit" { "New Game" }
@@ -40,7 +43,7 @@ pub mod boggle_render {
         .into_string()
     }
 
-    pub fn render_word_input() -> String {
+    pub fn word_input() -> String {
         html! {
             input type="text"
             name="word"
@@ -57,10 +60,10 @@ pub mod boggle_render {
         .into_string()
     }
 
-    pub fn render_starting_state() -> String {
+    pub fn starting_state() -> String {
         html! {
             div id = "game-timer" {
-                (PreEscaped(render_new_game_button()))
+                (PreEscaped(Self::new_game_button()))
             }
             div id="game-board" {}
             div id="word-input" {}
@@ -70,26 +73,26 @@ pub mod boggle_render {
         .into_string()
     }
 
-    pub fn render_inprogress_state(timer: &str, board: &BoggleBoard) -> String {
+    pub fn inprogress_state(timer: &str, board: &BoggleBoard) -> String {
         html! {
             div id="game-timer" {
             (timer)
             }
             div id="game-board" {
-                (PreEscaped(render_board(&board)))
+                (PreEscaped(Self::board(&board)))
             }
             div id="word-input" {
-                (PreEscaped(render_word_input()))
+                (PreEscaped(Self::word_input()))
             }
             div id="valid-words" {}
         }
         .into_string()
     }
 
-    pub fn render_word_submit(found_words: &[String]) -> String {
+    pub fn word_submit(found_words: &[String]) -> String {
         html! {
             div id="word-input" {
-                (PreEscaped(render_word_input()))
+                (PreEscaped(Self::word_input()))
             }
             div id="valid-words" {
                 ul {
@@ -108,45 +111,39 @@ pub mod boggle_render {
         .into_string()
     }
 
-    pub fn render_gameover_state(
-        board: &BoggleBoard,
-        players: &HashMap<String, PlayerState>,
-    ) -> String {
+    pub fn gameover_state(board: &BoggleBoard, players: &HashMap<String, PlayerState>) -> String {
         // Sort players by score in descending order
         let mut sorted_players: Vec<_> = players.iter().collect();
         sorted_players.sort_by(|a, b| b.1.score.cmp(&a.1.score));
 
         html! {
             div id="game-timer" {
-                (PreEscaped(render_new_game_button()))
+                (PreEscaped(Self::new_game_button()))
             }
             div id="game-board" {
-                (PreEscaped(render_board(&board)))
+                (PreEscaped(Self::board(&board)))
             }
             div id="word-input" {
-                (PreEscaped(render_player_scores(&board, &sorted_players)))
+                (PreEscaped(Self::player_scores(&board, &sorted_players)))
             }
             div id="valid-words" {
-                (PreEscaped(render_valid_words(&board.valid_words)))
+                (PreEscaped(Self::valid_words(&board.valid_words)))
             }
         }
         .into_string()
     }
 
-    fn render_player_scores(
-        board: &BoggleBoard,
-        sorted_players: &[(&String, &PlayerState)],
-    ) -> String {
+    fn player_scores(board: &BoggleBoard, sorted_players: &[(&String, &PlayerState)]) -> String {
         html! {
-            (PreEscaped(render_scores("Board Total".to_string(), board.total_score.to_string())))
+            (PreEscaped(Self::scores("Board Total".to_string(), board.total_score.to_string())))
             @for (player_name, player) in sorted_players {
-                (PreEscaped(render_scores(player_name.to_string(), player.score.to_string())))
+                (PreEscaped(Self::scores(player_name.to_string(), player.score.to_string())))
             }
         }
         .into_string()
     }
 
-    fn render_scores(name: String, score: String) -> String {
+    fn scores(name: String, score: String) -> String {
         html! {
             form action="/get_player_score" method="post" hx-post="/get_score" hx-trigger="click" hx-target="#valid-words" {
                 input type="hidden" name="username" value=(name) {}
@@ -158,7 +155,7 @@ pub mod boggle_render {
         .into_string()
     }
 
-    fn render_board(board: &BoggleBoard) -> String {
+    fn board(board: &BoggleBoard) -> String {
         html! {
             @for row in &board.board {
                 @for &letter in row {
@@ -171,18 +168,45 @@ pub mod boggle_render {
         .into_string()
     }
 
-    pub fn render_valid_words(word_list: &Vec<(String, String)>) -> String {
+    pub fn valid_words(word_list: &Vec<(String, String)>) -> String {
         html! {
-               ul {
-                       @for (word, definition) in word_list {
-                           li {
-                               div class="word-container" {
-                                   span class="word" { (word) }
-                                   span class="definition" { (definition) }
-                               }
-                           }
+           ul {
+               @for (word, definition) in word_list {
+                   li {
+                       div class="word-container" {
+                           span class="word" { (word) }
+                           span class="definition" { (definition) }
                        }
+                   }
                }
+           }
+        }
+        .into_string()
+    }
+
+    pub fn root() -> String {
+        html! {
+            (maud::DOCTYPE)
+            html {
+                head {
+                    title { "Boggle Game" }
+                    script
+                        src="https://unpkg.com/htmx.org@1.9.9"
+                        integrity="sha384-QFjmbokDn2DjBjq+fM+8LUIVrAgqcNW2s0PjAxHETgRn9l4fvX31ZxDxvwQnyMOX"
+                        crossorigin="anonymous" {}
+                    script src="https://unpkg.com/htmx.org/dist/ext/ws.js" {}
+                   link rel="stylesheet" href="/static/style.css";
+                }
+                body hx-ext="ws" ws-connect="/ws" {
+                    h1 { "Boggle Game" }
+                    // div hx-ext="ws" ws-connect="/ws" {
+                        div id="game-timer" {}
+                        div id="game-board" {}
+                        div id="word-input" {}
+                        div id="valid-words" {}
+                    // }
+                }
+            }
         }
         .into_string()
     }
