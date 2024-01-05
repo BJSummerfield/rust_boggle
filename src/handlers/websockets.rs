@@ -1,14 +1,16 @@
 use axum::extract::ws::{Message, WebSocket};
-
 use futures::{
     sink::SinkExt,
     stream::{SplitSink, SplitStream, StreamExt},
 };
 use serde::Deserialize;
 use std::sync::Arc;
-use tokio::sync::{
-    mpsc::{UnboundedReceiver, UnboundedSender},
-    Mutex,
+use tokio::{
+    sync::{
+        mpsc::{UnboundedReceiver, UnboundedSender},
+        Mutex,
+    },
+    task::{JoinError, JoinHandle},
 };
 
 use crate::GameState;
@@ -54,25 +56,30 @@ impl WebSockets {
         username: &str,
     ) {
         //Sends game messages (html) to all users
-        let send_task = tokio::spawn(Self::spawn_receiver_task(state.clone(), ws_sender.clone()));
+        let mut send_task =
+            tokio::spawn(Self::spawn_receiver_task(state.clone(), ws_sender.clone()));
 
         //Receives messages from user and sends the user a response
-        let recv_task = tokio::spawn(Self::receive_messages(
+        let mut recv_task = tokio::spawn(Self::receive_messages(
             receiver,
             ws_sender.clone(),
             state.clone(),
             username.to_string(),
         ));
 
+        // Closure to handle task completion
+        let handle_task_completion =
+            |task_name: &str, other_task: &mut JoinHandle<()>, result: Result<(), JoinError>| {
+                match result {
+                    Ok(_) => println!("{task_name} task completed"),
+                    Err(e) => println!("{task_name} task encountered an error: {:?}", e),
+                }
+                other_task.abort();
+            };
+
         tokio::select! {
-            result = send_task => match result {
-                Ok(_) => println!("Send task completed"),
-                Err(e) => println!("Send task encountered an error: {:?}", e),
-            },
-            result = recv_task => match result {
-                Ok(_) => println!("Receive task completed"),
-                Err(e) => println!("Receive task encountered an error: {:?}", e),
-            },
+            result = (&mut send_task) => handle_task_completion("Send", &mut recv_task, result),
+            result = (&mut recv_task) => handle_task_completion("Receive", &mut send_task, result),
         };
 
         Self::cleanup(&state, username).await;

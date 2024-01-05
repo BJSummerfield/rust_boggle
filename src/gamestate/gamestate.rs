@@ -139,7 +139,6 @@ impl GameState {
     //found words if it is
 
     pub fn submit_word(&mut self, username: &str, word: &str) {
-        println!("Made it to submit_word");
         let sanitized_word = word.trim().to_uppercase();
 
         // Check if the word contains spaces or non-alphabetic characters
