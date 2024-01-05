@@ -18,8 +18,10 @@ use tower_http::services::ServeDir;
 mod boggle;
 mod dictionary;
 mod gamestate;
+mod handlers;
 mod player_state;
 use gamestate::GameState;
+use handlers::Handle;
 
 #[tokio::main]
 async fn main() {
@@ -28,13 +30,15 @@ async fn main() {
     let styles_path = env::var("STATIC_FILES_PATH").unwrap_or_else(|_| "/app/static".to_string());
     let app = Router::new()
         .route("/", get(serve_boggle_board))
-        .route("/new_game", post(new_game_handler))
-        .route("/get_score", post(get_player_score_handler))
+        // .route("/new_game", post(new_game_handler))
+        .route("/new_game", post(Handle::new_game))
+        .route("/get_score", post(Handle::get_player_score))
         // .route("/submit_word", post(submit_word_handler))
         .layer(Extension(Arc::clone(&game_state)))
         // Serve static files from the `static` directory
         .nest_service("/static", ServeDir::new(styles_path))
-        .route("/ws", get(websocket_handler))
+        // .route("/ws", get(websocket_handler))
+        .route("/ws", get(Handle::websocket))
         .with_state(game_state);
 
     // Bind to a socket address
@@ -52,11 +56,12 @@ async fn websocket_handler(
     ws: WebSocketUpgrade,
     State(state): State<Arc<Mutex<GameState>>>,
 ) -> impl IntoResponse {
-    println!("Websocket connection received");
+    println!("Websocket connection requested");
     ws.on_upgrade(|socket| websocket(socket, state))
 }
 
 async fn websocket(ws: WebSocket, state: Arc<Mutex<GameState>>) {
+    println!("Websocket connection made");
     let (mut sender, mut receiver) = ws.split();
     let (ws_sender, mut ws_receiver) = tokio::sync::mpsc::unbounded_channel::<Message>();
 
@@ -76,8 +81,8 @@ async fn websocket(ws: WebSocket, state: Arc<Mutex<GameState>>) {
     }
 
     let mut username = String::new();
-
-    // Main loop for handling incoming WebSocket messages
+    //
+    // // Main loop for handling incoming WebSocket messages
     while let Some(Ok(message)) = receiver.next().await {
         println!("initial message received");
         if let Message::Text(name) = message {
@@ -93,6 +98,7 @@ async fn websocket(ws: WebSocket, state: Arc<Mutex<GameState>>) {
                         gamestate.add_player(connect.username.clone(), ws_sender.clone());
                         username = connect.username;
                         println!("username: {}", username);
+                        break;
                     } else {
                         if ws_sender
                             .send(Message::Text(format!("{} is taken", connect.username)))
@@ -115,12 +121,12 @@ async fn websocket(ws: WebSocket, state: Arc<Mutex<GameState>>) {
                 }
             }
 
-            if !username.is_empty() {
-                break;
-            }
+            // if !username.is_empty() {
+            //     break;
+            // }
         }
     }
-
+    //
     let initial_game_state = state.lock().await.get_game_state().await;
     if ws_sender.send(Message::Text(initial_game_state)).is_err() {
         println!("Failed to send initial game state");
@@ -168,10 +174,10 @@ async fn websocket(ws: WebSocket, state: Arc<Mutex<GameState>>) {
         })
     };
 
-    tokio::select! {
-        _ = (&mut send_task) => recv_task.abort(),
-        _ = (&mut recv_task) => send_task.abort(),
-    };
+    // tokio::select! {
+    //     _ = (&mut send_task) => recv_task.abort(),
+    //     _ = (&mut recv_task) => send_task.abort(),
+    // };
 
     let mut gamestate = state.lock().await;
     println!("Removing player: {}", username);
