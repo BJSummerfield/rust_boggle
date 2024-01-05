@@ -2,6 +2,8 @@
 use crate::boggle::BoggleBoard;
 use crate::dictionary::Dictionary;
 use crate::player_state::PlayerState;
+use crate::render::Render;
+
 use axum::extract::ws::Message;
 
 use maud::html;
@@ -9,8 +11,6 @@ use std::{collections::HashMap, env, sync::Arc, time::Duration};
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::{broadcast, Mutex, Notify};
 
-use super::boggle_render::*;
-//
 // Define possible game states
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum GameStateEnum {
@@ -76,14 +76,14 @@ impl GameState {
     }
 
     pub async fn get_new_user(&self) -> String {
-        boggle_render::render_new_user()
+        Render::new_user()
     }
 
     pub async fn get_game_state(&self) -> String {
         match self.state {
             GameStateEnum::Starting => {
                 println!("Starting");
-                boggle_render::render_starting_state()
+                Render::starting_state()
             }
             GameStateEnum::InProgress => {
                 println!("In Progress");
@@ -92,11 +92,11 @@ impl GameState {
                 let seconds = *&self.timer % 60;
 
                 let fmt_timer = format!("{}:{:02}", minutes, seconds);
-                boggle_render::render_inprogress_state(&fmt_timer, &self.board)
+                Render::inprogress_state(&fmt_timer, &self.board)
             }
             GameStateEnum::GameOver => {
                 println!("Game Over");
-                boggle_render::render_gameover_state(&self.board, &self.players)
+                Render::gameover_state(&self.board, &self.players)
             }
         }
     }
@@ -115,8 +115,7 @@ impl GameState {
                 let seconds = *&self.timer % 60;
 
                 let fmt_timer = format!("{}:{:02}", minutes, seconds);
-                let inprogress_html =
-                    boggle_render::render_inprogress_state(&fmt_timer, &self.board);
+                let inprogress_html = Render::inprogress_state(&fmt_timer, &self.board);
                 self.broadcast_state(inprogress_html);
             }
         }
@@ -124,7 +123,7 @@ impl GameState {
 
     fn game_over(&mut self) {
         self.total_scores();
-        let game_over_html = boggle_render::render_gameover_state(&self.board, &self.players);
+        let game_over_html = Render::gameover_state(&self.board, &self.players);
         //total the players word lists
         self.broadcast_state(game_over_html);
     }
@@ -140,7 +139,6 @@ impl GameState {
     //found words if it is
 
     pub fn submit_word(&mut self, username: &str, word: &str) {
-        println!("Made it to submit_word");
         let sanitized_word = word.trim().to_uppercase();
 
         // Check if the word contains spaces or non-alphabetic characters
@@ -160,7 +158,7 @@ impl GameState {
             println!("Player state: {:?}", player_state.found_words);
 
             // Render the HTML for the submitted word
-            let submit_word_html = boggle_render::render_word_submit(&player_state.found_words);
+            let submit_word_html = Render::word_submit(&player_state.found_words);
 
             // Send the HTML to the specific player
             if let Err(e) = player_state
@@ -214,10 +212,10 @@ impl GameState {
         match username {
             "Board Total" => {
                 // Assuming self.board is accessible and has a field valid_words
-                boggle_render::render_valid_words(&self.board.valid_words)
+                Render::valid_words(&self.board.valid_words)
             }
             _ => match self.players.get(username) {
-                Some(player_state) => boggle_render::render_valid_words(&player_state.valid_words),
+                Some(player_state) => Render::valid_words(&player_state.valid_words),
                 None => {
                     let markup = html! {
                         div {
@@ -257,7 +255,7 @@ impl GameState {
                         let seconds = *timer_guard % 60;
 
                         let fmt_timer = format!("{}:{:02}", minutes, seconds);
-                        let timer_html = boggle_render::render_timer(&fmt_timer);
+                        let timer_html = Render::timer(&fmt_timer);
 
                         if let Err(e) = timer_tx.send(timer_html) {
                             eprintln!("Failed to send timer update: {}", e);
