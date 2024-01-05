@@ -1,6 +1,5 @@
 use crate::boggle::BoggleBoard;
 use crate::player_state::PlayerState;
-use axum::response::Html;
 use maud::{html, PreEscaped};
 use std::collections::HashMap;
 
@@ -160,7 +159,12 @@ impl Render {
             @for row in &board.board {
                 @for &letter in row {
                     div class="board-cell" {
-                        (letter)
+                        // Check if the letter is 'Q' and display "Qu" instead
+                        @if letter == 'Q' {
+                            "Qu"
+                        } @else {
+                            (letter)
+                        }
                     }
                 }
             }
