@@ -67,21 +67,33 @@ impl Handle {
         let (sender, mut receiver) = ws.split();
         let (ws_sender, ws_receiver) = tokio::sync::mpsc::unbounded_channel::<Message>();
 
-        Self::spawn_sender_task(ws_receiver, sender).await;
+        let mut send_task = tokio::spawn(Self::spawn_sender_task(ws_receiver, sender));
         Self::handle_new_user(ws_sender.clone(), state.clone()).await;
 
         let username = Self::handle_user_connection(&mut receiver, &ws_sender, &state).await;
         Self::send_initial_game_state(&ws_sender, &state).await;
         Self::spawn_receiver_task(&state, ws_sender.clone()).await;
-        Self::receive_messages(&mut receiver, &ws_sender, &state, &username).await;
+        let mut recv_task = tokio::spawn(Self::receive_messages(
+            receiver,
+            ws_sender.clone(),
+            state.clone(),
+            username.to_string(),
+        ));
 
-        let mut gamestate = state.lock().await;
-        println!("Removing player: {}", username);
-        gamestate.players.remove(&username);
-        if gamestate.players.is_empty() {
-            println!("No more players, resetting game state");
-            gamestate.set_state_to_starting().await;
-        }
+        tokio::select! {
+            _ = (&mut send_task) => {
+                println!("Send task exited");
+                recv_task.abort();
+
+            },
+            _ = (&mut recv_task) => {
+                println!("Receive task exited");
+                send_task.abort();
+            },
+        };
+
+        // Cleanup logic
+        Self::cleanup(&state, &username).await;
     }
 
     async fn spawn_sender_task(
@@ -167,16 +179,16 @@ impl Handle {
     }
 
     async fn receive_messages(
-        receiver: &mut SplitStream<WebSocket>,
-        ws_sender: &UnboundedSender<Message>,
-        state: &Arc<Mutex<GameState>>,
-        username: &str,
+        mut receiver: SplitStream<WebSocket>, // Changed to take ownership
+        ws_sender: UnboundedSender<Message>,
+        state: Arc<Mutex<GameState>>,
+        username: String,
     ) {
         while let Some(Ok(Message::Text(text))) = receiver.next().await {
             match serde_json::from_str::<WordSubmission>(&text) {
                 Ok(word_submission) => {
                     let mut gamestate = state.lock().await;
-                    gamestate.submit_word(username, &word_submission.word);
+                    gamestate.submit_word(&username, &word_submission.word);
                 }
                 Err(error) => {
                     println!("Failed to parse word message: {error}");
@@ -205,5 +217,15 @@ impl Handle {
                 }
             }
         });
+    }
+
+    async fn cleanup(state: &Arc<Mutex<GameState>>, username: &str) {
+        let mut gamestate = state.lock().await;
+        println!("Cleaning up player: {}", username);
+        gamestate.players.remove(username);
+        if gamestate.players.is_empty() {
+            println!("No more players, resetting game state");
+            gamestate.set_state_to_starting().await;
+        }
     }
 }
