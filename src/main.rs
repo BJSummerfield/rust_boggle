@@ -174,10 +174,10 @@ async fn websocket(ws: WebSocket, state: Arc<Mutex<GameState>>) {
         })
     };
 
-    // tokio::select! {
-    //     _ = (&mut send_task) => recv_task.abort(),
-    //     _ = (&mut recv_task) => send_task.abort(),
-    // };
+    tokio::select! {
+        _ = (&mut send_task) => recv_task.abort(),
+        _ = (&mut recv_task) => send_task.abort(),
+    };
 
     let mut gamestate = state.lock().await;
     println!("Removing player: {}", username);

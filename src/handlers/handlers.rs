@@ -67,12 +67,15 @@ impl Handle {
         let (sender, mut receiver) = ws.split();
         let (ws_sender, ws_receiver) = tokio::sync::mpsc::unbounded_channel::<Message>();
 
-        let mut send_task = tokio::spawn(Self::spawn_sender_task(ws_receiver, sender));
+        Self::spawn_sender_task(ws_receiver, sender).await;
         Self::handle_new_user(ws_sender.clone(), state.clone()).await;
 
         let username = Self::handle_user_connection(&mut receiver, &ws_sender, &state).await;
         Self::send_initial_game_state(&ws_sender, &state).await;
-        Self::spawn_receiver_task(&state, ws_sender.clone()).await;
+
+        let mut send_task =
+            tokio::spawn(Self::spawn_receiver_task(state.clone(), ws_sender.clone()));
+
         let mut recv_task = tokio::spawn(Self::receive_messages(
             receiver,
             ws_sender.clone(),
@@ -84,12 +87,12 @@ impl Handle {
             _ = (&mut send_task) => {
                 println!("Send task exited");
                 recv_task.abort();
-
             },
             _ = (&mut recv_task) => {
                 println!("Receive task exited");
                 send_task.abort();
             },
+
         };
 
         // Cleanup logic
@@ -99,13 +102,11 @@ impl Handle {
     async fn spawn_sender_task(
         mut ws_receiver: UnboundedReceiver<Message>,
         mut sender: SplitSink<WebSocket, Message>,
-        // ws_sender: UnboundedSender<Message>,
     ) {
         tokio::spawn(async move {
             while let Some(message) = ws_receiver.recv().await {
-                if sender.send(message).await.is_err() {
-                    println!("Error sending message to websocket");
-                    // Self::handle_connection_error("Error sending message to WebSocket", &ws_sender);
+                if let Err(error) = sender.send(message).await {
+                    println!("Error sending message to WebSocket: {:?}", error);
                     break;
                 }
             }
@@ -204,19 +205,17 @@ impl Handle {
     }
 
     async fn spawn_receiver_task(
-        state: &Arc<Mutex<GameState>>,
+        state: Arc<Mutex<GameState>>,
         ws_sender_clone: UnboundedSender<Message>,
     ) {
         let tx = state.lock().await.tx.clone();
         let mut rx = tx.subscribe();
 
-        tokio::spawn(async move {
-            while let Ok(msg) = rx.recv().await {
-                if ws_sender_clone.send(Message::Text(msg)).is_err() {
-                    break;
-                }
+        while let Ok(msg) = rx.recv().await {
+            if ws_sender_clone.send(Message::Text(msg)).is_err() {
+                break;
             }
-        });
+        }
     }
 
     async fn cleanup(state: &Arc<Mutex<GameState>>, username: &str) {
