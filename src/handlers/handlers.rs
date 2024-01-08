@@ -40,9 +40,6 @@ impl Handle {
         ws: WebSocketUpgrade,
         State(state): State<Arc<Mutex<Boggle>>>,
     ) -> impl IntoResponse {
-        ws.on_upgrade(|socket| async move {
-            println!("Websocket connection received");
-            WebSockets::new(socket, state).await
-        })
+        ws.on_upgrade(|socket| async move { WebSockets::new(socket, state).await })
     }
 }

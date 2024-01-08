@@ -30,7 +30,6 @@ impl Boggle {
     pub fn new() -> Arc<Mutex<Self>> {
         let styles_path =
             env::var("STATIC_FILES_PATH").unwrap_or_else(|_| "/app/static".to_string());
-        print!("{}", styles_path);
         let file_path = format!("{}/scrabble-dictionary.txt", styles_path);
         let dictionary =
             Arc::new(Dictionary::new(&file_path).expect("Failed to create dictionary"));
@@ -63,23 +62,15 @@ impl Boggle {
 
     pub async fn get_game_state(&self) -> String {
         match self.state {
-            BoggleStateEnum::Starting => {
-                println!("Starting");
-                Render::starting_state()
-            }
+            BoggleStateEnum::Starting => Render::starting_state(),
             BoggleStateEnum::InProgress => {
-                println!("In Progress");
-
                 let minutes = *&self.timer / 60;
                 let seconds = *&self.timer % 60;
 
                 let fmt_timer = format!("{}:{:02}", minutes, seconds);
                 Render::inprogress_state(&fmt_timer, &self.board)
             }
-            BoggleStateEnum::GameOver => {
-                println!("Game Over");
-                Render::gameover_state(&self.board, &self.players)
-            }
+            BoggleStateEnum::GameOver => Render::gameover_state(&self.board, &self.players),
         }
     }
 
@@ -125,13 +116,11 @@ impl Boggle {
 
         // Check if the word contains spaces or non-alphabetic characters
         if sanitized_word.contains(' ') || sanitized_word.chars().any(|c| !c.is_alphabetic()) {
-            println!("Word contains spaces or non-alphabetic characters and is therefore invalid.");
             return;
         }
 
         // Check word length constraints
         if sanitized_word.len() <= 2 || sanitized_word.len() > 16 {
-            println!("Word length constraints not met.");
             return;
         }
 
@@ -146,10 +135,8 @@ impl Boggle {
                 .sender
                 .send(axum::extract::ws::Message::Text(submit_word_html))
             {
-                println!("Failed to send submit word HTML to player: {}", e);
+                eprintln!("Failed to send submit word HTML to player: {}", e);
             }
-        } else {
-            println!("Username not found: {}", username);
         }
     }
 

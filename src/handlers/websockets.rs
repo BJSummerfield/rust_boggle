@@ -24,8 +24,6 @@ pub struct WebSockets {}
 
 impl WebSockets {
     pub async fn new(ws: WebSocket, boggle: Arc<Mutex<Boggle>>) {
-        println!("websocket connection made");
-
         //Broadcast tx/rx
         let (sender, mut receiver) = ws.split();
 
@@ -43,9 +41,7 @@ impl WebSockets {
                 Self::send_initial_game_boggle(&ws_sender, &boggle).await;
                 Self::monitor_websocket_connection(receiver, ws_sender, boggle, username).await;
             }
-            None => {
-                println!("WebSocket connection closed before username submission.");
-            }
+            None => {}
         }
     }
 
@@ -72,8 +68,8 @@ impl WebSockets {
         let handle_task_completion =
             |task_name: &str, other_task: &mut JoinHandle<()>, result: Result<(), JoinError>| {
                 match result {
-                    Ok(_) => println!("{task_name} task completed"),
-                    Err(e) => println!("{task_name} task encountered an error: {:?}", e),
+                    Ok(_) => {}
+                    Err(e) => eprintln!("{task_name} task encountered an error: {:?}", e),
                 }
                 other_task.abort();
             };
@@ -93,7 +89,7 @@ impl WebSockets {
         tokio::spawn(async move {
             while let Some(message) = ws_receiver.recv().await {
                 if let Err(error) = sender.send(message).await {
-                    println!("Error sending message to WebSocket: {:?}", error);
+                    eprintln!("Error sending message to WebSocket: {:?}", error);
                     break;
                 }
             }
@@ -103,7 +99,7 @@ impl WebSockets {
     async fn handle_new_user(ws_sender: UnboundedSender<Message>, boggle: Arc<Mutex<Boggle>>) {
         let new_user_html = boggle.lock().await.get_new_user().await;
         if ws_sender.send(Message::Text(new_user_html)).is_err() {
-            println!("Failed to send new user HTML");
+            eprintln!("Failed to send new user HTML");
         }
     }
 
@@ -113,7 +109,6 @@ impl WebSockets {
         boggle: &Arc<Mutex<Boggle>>,
     ) -> Option<PlayerId> {
         while let Some(message_result) = receiver.next().await {
-            println!("Received message {:?}", message_result);
             match message_result {
                 Ok(message) => match Self::process_message(message, ws_sender, boggle).await {
                     Ok(Some(username)) => return Some(username),
@@ -121,7 +116,7 @@ impl WebSockets {
                     Err(_) => return None,
                 },
                 Err(e) => {
-                    println!("Error receiving message: {:?}", e);
+                    eprintln!("Error receiving message: {:?}", e);
                     return None;
                 }
             }
@@ -136,14 +131,8 @@ impl WebSockets {
     ) -> Result<Option<PlayerId>, String> {
         match message {
             Message::Text(name) => Self::process_text_message(name, ws_sender, boggle).await,
-            Message::Close(_) => {
-                println!("WebSocket connection closed by client");
-                Ok(None)
-            }
-            _ => {
-                println!("Unexpected message type");
-                Ok(None)
-            }
+            Message::Close(_) => Ok(None),
+            _ => Ok(None),
         }
     }
 
@@ -175,7 +164,7 @@ impl WebSockets {
     ) {
         let initial_game_boggle = boggle.lock().await.get_game_state().await;
         if ws_sender.send(Message::Text(initial_game_boggle)).is_err() {
-            println!("Failed to send initial game boggle");
+            eprintln!("Failed to send initial game boggle");
         }
     }
 
@@ -192,12 +181,12 @@ impl WebSockets {
                     boggle.submit_word(&username, &word_submission.word);
                 }
                 Err(error) => {
-                    println!("Failed to parse word message: {error}");
+                    eprintln!("Failed to parse word message: {error}");
                     if ws_sender
                         .send(Message::Text("Failed to parse word message".to_string()))
                         .is_err()
                     {
-                        println!("Failed to send error message");
+                        eprintln!("Failed to send error message");
                     }
                 }
             }
@@ -220,10 +209,8 @@ impl WebSockets {
 
     async fn cleanup(boggle: &Arc<Mutex<Boggle>>, username: &PlayerId) {
         let mut boggle = boggle.lock().await;
-        println!("Cleaning up player: {}", username);
         boggle.players.remove(&username);
         if boggle.players.is_empty() {
-            println!("No more players, resetting game boggle");
             boggle.set_state_to_starting().await;
         }
     }
