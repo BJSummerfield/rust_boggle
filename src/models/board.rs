@@ -1,4 +1,4 @@
-use crate::dictionary::{Dictionary, SearchResult};
+use crate::models::{Dictionary, SearchResult};
 use rand::seq::{IteratorRandom, SliceRandom};
 use std::sync::Arc;
 
@@ -12,14 +12,14 @@ const DICE: [&str; 16] = [
 ];
 
 #[derive(Debug)]
-pub struct BoggleBoard {
+pub struct Board {
     pub board: Vec<Vec<char>>,
     dictionary: Arc<Dictionary>,
     pub valid_words: Vec<(String, String)>,
     pub total_score: u32,
 }
 
-impl BoggleBoard {
+impl Board {
     // Generate a new Boggle board
     pub fn new(dictionary: &Arc<Dictionary>) -> Self {
         let mut rng = rand::thread_rng();
@@ -36,7 +36,7 @@ impl BoggleBoard {
             .map(|chunk| chunk.to_vec())
             .collect();
 
-        let mut boggle_board = BoggleBoard {
+        let mut boggle_board = Board {
             board,
             dictionary: dictionary.clone(),
             valid_words: Vec::new(),
@@ -46,7 +46,7 @@ impl BoggleBoard {
         boggle_board.find_valid_words();
 
         for (word, _) in &boggle_board.valid_words {
-            boggle_board.total_score += BoggleBoard::calculate_score(word.len());
+            boggle_board.total_score += Board::calculate_score(word.len());
         }
 
         boggle_board
