@@ -44,7 +44,7 @@ impl Boggle {
             dictionary,
             boggle_channel_tx,
             state: BoggleStateEnum::Starting,
-            timer: 180,
+            timer: 10,
             timer_cancel_token,
             tx,
         }));

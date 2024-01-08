@@ -5,6 +5,11 @@ use std::collections::HashMap;
 use std::fmt;
 use tokio::sync::mpsc::UnboundedSender;
 
+#[derive(Deserialize, Debug)]
+pub struct PlayerIdSubmission {
+    pub username: PlayerId,
+}
+
 #[derive(Debug, Clone)]
 pub struct PlayerList {
     players: HashMap<PlayerId, Player>,
@@ -45,10 +50,6 @@ impl PlayerList {
 
     pub fn values_mut(&mut self) -> std::collections::hash_map::ValuesMut<PlayerId, Player> {
         self.players.values_mut()
-    }
-
-    pub fn iter_mut(&mut self) -> std::collections::hash_map::IterMut<PlayerId, Player> {
-        self.players.iter_mut()
     }
 
     pub fn is_empty(&self) -> bool {

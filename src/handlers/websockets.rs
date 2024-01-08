@@ -13,7 +13,7 @@ use tokio::{
     task::{JoinError, JoinHandle},
 };
 
-use crate::models::{Boggle, PlayerId};
+use crate::models::{Boggle, PlayerId, PlayerIdSubmission};
 
 #[derive(Deserialize, Debug)]
 struct WordSubmission {
@@ -113,6 +113,7 @@ impl WebSockets {
         boggle: &Arc<Mutex<Boggle>>,
     ) -> Option<PlayerId> {
         while let Some(message_result) = receiver.next().await {
+            println!("Received message {:?}", message_result);
             match message_result {
                 Ok(message) => match Self::process_message(message, ws_sender, boggle).await {
                     Ok(Some(username)) => return Some(username),
@@ -151,8 +152,10 @@ impl WebSockets {
         ws_sender: &UnboundedSender<Message>,
         boggle: &Arc<Mutex<Boggle>>,
     ) -> Result<Option<PlayerId>, String> {
-        let player_id = serde_json::from_str::<PlayerId>(&message)
-            .map_err(|error| format!("Failed to parse player ID from message: {error}"))?;
+        let incoming_message = serde_json::from_str::<PlayerIdSubmission>(&message)
+            .map_err(|error| format!("Failed to parse incoming message: {error}"))?;
+
+        let player_id = PlayerId(incoming_message.username.to_string()); // Create PlayerId from the extracted username
 
         let mut boggle = boggle.lock().await;
         if boggle.players.contains_key(&player_id) {

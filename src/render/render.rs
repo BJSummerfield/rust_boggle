@@ -1,4 +1,4 @@
-use crate::models::{Board, Player, PlayerList};
+use crate::models::{Board, PlayerList};
 use maud::{html, PreEscaped};
 
 pub struct Render {}
