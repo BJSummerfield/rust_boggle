@@ -1,6 +1,5 @@
-use crate::models::{Board, Player};
+use crate::models::{Board, Player, PlayerList};
 use maud::{html, PreEscaped};
-use std::collections::HashMap;
 
 pub struct Render {}
 
@@ -109,11 +108,8 @@ impl Render {
         .into_string()
     }
 
-    pub fn gameover_state(board: &Board, players: &HashMap<String, Player>) -> String {
+    pub fn gameover_state(board: &Board, players: &PlayerList) -> String {
         // Sort players by score in descending order
-        let mut sorted_players: Vec<_> = players.iter().collect();
-        sorted_players.sort_by(|a, b| b.1.score.cmp(&a.1.score));
-
         html! {
             div id="game-timer" {
                 (PreEscaped(Self::new_game_button()))
@@ -122,7 +118,7 @@ impl Render {
                 (PreEscaped(Self::board(&board)))
             }
             div id="word-input" {
-                (PreEscaped(Self::player_scores(&board, &sorted_players)))
+                (PreEscaped(Self::player_scores(&board, &players)))
             }
             div id="valid-words" {
                 (PreEscaped(Self::valid_words(&board.valid_words)))
@@ -131,7 +127,8 @@ impl Render {
         .into_string()
     }
 
-    fn player_scores(board: &Board, sorted_players: &[(&String, &Player)]) -> String {
+    fn player_scores(board: &Board, players: &PlayerList) -> String {
+        let sorted_players = players.get_players_sorted_by_score();
         html! {
             (PreEscaped(Self::scores("Board Total".to_string(), board.total_score.to_string())))
             @for (player_name, player) in sorted_players {

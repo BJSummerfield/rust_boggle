@@ -9,13 +9,8 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 
 use crate::handlers::WebSockets;
-use crate::models::Boggle;
+use crate::models::{Boggle, PlayerId};
 use crate::render::Render;
-
-#[derive(serde::Deserialize)]
-pub struct PlayerName {
-    pub username: String,
-}
 
 pub struct Handle {}
 
@@ -33,10 +28,10 @@ impl Handle {
 
     pub async fn get_player_score(
         Extension(boggle): Extension<Arc<Mutex<Boggle>>>,
-        Form(PlayerName { username }): Form<PlayerName>,
+        Form(player_id): Form<PlayerId>,
     ) -> impl IntoResponse {
         let boggle = boggle.lock().await;
-        let player_score_html = boggle.get_player_score(&username).await;
+        let player_score_html = boggle.get_player_score(player_id).await;
 
         Html(player_score_html).into_response()
     }

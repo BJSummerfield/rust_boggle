@@ -1,10 +1,8 @@
-use crate::models::{Board, Dictionary, Player};
+use crate::models::{Board, Dictionary, PlayerId, PlayerList};
 use crate::render::Render;
 
-use axum::extract::ws::Message;
 use maud::html;
-use std::{collections::HashMap, env, sync::Arc, time::Duration};
-use tokio::sync::mpsc::UnboundedSender;
+use std::{env, sync::Arc, time::Duration};
 use tokio::sync::{broadcast, Mutex, Notify};
 
 // Define possible game states
@@ -18,7 +16,7 @@ pub enum BoggleStateEnum {
 //create a game state struct to hold the game state and the broadcast channel sender for sending messages to the clients (players)
 #[derive(Debug)]
 pub struct Boggle {
-    pub players: HashMap<String, Player>,
+    pub players: PlayerList,
     state: BoggleStateEnum,
     board: Board,
     dictionary: Arc<Dictionary>,
@@ -41,7 +39,7 @@ impl Boggle {
         let (boggle_channel_tx, _) = broadcast::channel(1);
         let timer_cancel_token = Arc::new(Notify::new());
         let boggle = Arc::new(Mutex::new(Self {
-            players: HashMap::new(),
+            players: PlayerList::new(),
             board: Board::new(&dictionary),
             dictionary,
             boggle_channel_tx,
@@ -57,18 +55,6 @@ impl Boggle {
         });
 
         boggle
-    }
-
-    fn clear_players_state(&mut self) {
-        for (_, player) in self.players.iter_mut() {
-            player.found_words.clear();
-            player.valid_words.clear();
-            player.score = 0;
-        }
-    }
-
-    pub fn add_player(&mut self, name: String, sender: UnboundedSender<Message>) {
-        self.players.entry(name).or_insert(Player::new(sender));
     }
 
     pub async fn get_new_user(&self) -> String {
@@ -101,7 +87,7 @@ impl Boggle {
         match self.state {
             BoggleStateEnum::InProgress => (),
             _ => {
-                self.clear_players_state();
+                self.players.clear_state();
                 self.start_timer();
 
                 self.state = BoggleStateEnum::InProgress;
@@ -134,7 +120,7 @@ impl Boggle {
     //submit_word function checks if the word is possible in the board and adds it to the players
     //found words if it is
 
-    pub fn submit_word(&mut self, username: &str, word: &str) {
+    pub fn submit_word(&mut self, username: &PlayerId, word: &str) {
         let sanitized_word = word.trim().to_uppercase();
 
         // Check if the word contains spaces or non-alphabetic characters
@@ -149,7 +135,7 @@ impl Boggle {
             return;
         }
 
-        if let Some(player) = self.players.get_mut(username) {
+        if let Some(player) = self.players.get_mut(&username) {
             player.add_word(sanitized_word); // Add word to player's state
 
             // Render the HTML for the submitted word
@@ -203,23 +189,23 @@ impl Boggle {
         }
     }
 
-    pub async fn get_player_score(&self, username: &str) -> String {
-        match username {
-            "Board Total" => {
-                // Assuming self.board is accessible and has a field valid_words
-                Render::valid_words(&self.board.valid_words)
-            }
-            _ => match self.players.get(username) {
+    pub async fn get_player_score(&self, username: PlayerId) -> String {
+        if username.0 == "Board Total" {
+            // Assuming self.board is accessible and has a field valid_words
+            Render::valid_words(&self.board.valid_words)
+        } else {
+            match self.players.get(&username) {
+                // Note the reference '&username'
                 Some(player) => Render::valid_words(&player.valid_words),
                 None => {
                     let markup = html! {
                         div {
-                            "Username not found: " (username)
+                            "Username not found: " (username.0)
                         }
                     };
                     markup.into_string()
                 }
-            },
+            }
         }
     }
 
