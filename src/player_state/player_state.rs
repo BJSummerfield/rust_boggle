@@ -1,4 +1,4 @@
-use crate::boggle::BoggleBoard;
+use crate::models::Board;
 use axum::extract::ws::Message;
 use tokio::sync::mpsc::UnboundedSender;
 
@@ -29,7 +29,7 @@ impl PlayerState {
     pub fn score_words(&mut self, boggle_words: &[(String, String)]) {
         for word in &self.found_words {
             if let Some((found_word, definition)) = boggle_words.iter().find(|(w, _)| w == word) {
-                self.score += BoggleBoard::calculate_score(word.len());
+                self.score += Board::calculate_score(word.len());
                 self.valid_words
                     .push((found_word.clone(), definition.clone()));
             }

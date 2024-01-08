@@ -13,7 +13,7 @@ use tokio::{
     task::{JoinError, JoinHandle},
 };
 
-use crate::GameState;
+use crate::models::Boggle;
 
 #[derive(Deserialize, Debug)]
 struct WordSubmission {
@@ -23,7 +23,7 @@ struct WordSubmission {
 pub struct WebSockets {}
 
 impl WebSockets {
-    pub async fn new(ws: WebSocket, state: Arc<Mutex<GameState>>) {
+    pub async fn new(ws: WebSocket, state: Arc<Mutex<Boggle>>) {
         println!("websocket connection made");
 
         //Broadcast tx/rx
@@ -52,7 +52,7 @@ impl WebSockets {
     async fn monitor_websocket_connection(
         receiver: SplitStream<WebSocket>,
         ws_sender: UnboundedSender<Message>,
-        state: Arc<Mutex<GameState>>,
+        state: Arc<Mutex<Boggle>>,
         username: &str,
     ) {
         //Sends game messages (html) to all users
@@ -99,7 +99,7 @@ impl WebSockets {
         });
     }
 
-    async fn handle_new_user(ws_sender: UnboundedSender<Message>, state: Arc<Mutex<GameState>>) {
+    async fn handle_new_user(ws_sender: UnboundedSender<Message>, state: Arc<Mutex<Boggle>>) {
         let new_user_html = state.lock().await.get_new_user().await;
         if ws_sender.send(Message::Text(new_user_html)).is_err() {
             println!("Failed to send new user HTML");
@@ -109,7 +109,7 @@ impl WebSockets {
     async fn handle_user_connection(
         receiver: &mut SplitStream<WebSocket>,
         ws_sender: &UnboundedSender<Message>,
-        state: &Arc<Mutex<GameState>>,
+        state: &Arc<Mutex<Boggle>>,
     ) -> Option<String> {
         while let Some(message_result) = receiver.next().await {
             match message_result {
@@ -130,7 +130,7 @@ impl WebSockets {
     async fn process_message(
         message: Message,
         ws_sender: &UnboundedSender<Message>,
-        state: &Arc<Mutex<GameState>>,
+        state: &Arc<Mutex<Boggle>>,
     ) -> Result<Option<String>, String> {
         match message {
             Message::Text(name) => Self::process_text_message(name, ws_sender, state).await,
@@ -148,7 +148,7 @@ impl WebSockets {
     async fn process_text_message(
         name: String,
         ws_sender: &UnboundedSender<Message>,
-        state: &Arc<Mutex<GameState>>,
+        state: &Arc<Mutex<Boggle>>,
     ) -> Result<Option<String>, String> {
         #[derive(Deserialize, Debug)]
         struct Connect {
@@ -170,7 +170,7 @@ impl WebSockets {
 
     async fn send_initial_game_state(
         ws_sender: &UnboundedSender<Message>,
-        state: &Arc<Mutex<GameState>>,
+        state: &Arc<Mutex<Boggle>>,
     ) {
         let initial_game_state = state.lock().await.get_game_state().await;
         if ws_sender.send(Message::Text(initial_game_state)).is_err() {
@@ -181,7 +181,7 @@ impl WebSockets {
     async fn receive_messages(
         mut receiver: SplitStream<WebSocket>, // Changed to take ownership
         ws_sender: UnboundedSender<Message>,
-        state: Arc<Mutex<GameState>>,
+        state: Arc<Mutex<Boggle>>,
         username: String,
     ) {
         while let Some(Ok(Message::Text(text))) = receiver.next().await {
@@ -204,7 +204,7 @@ impl WebSockets {
     }
 
     async fn spawn_receiver_task(
-        state: Arc<Mutex<GameState>>,
+        state: Arc<Mutex<Boggle>>,
         ws_sender_clone: UnboundedSender<Message>,
     ) {
         let tx = state.lock().await.tx.clone();
@@ -217,7 +217,7 @@ impl WebSockets {
         }
     }
 
-    async fn cleanup(state: &Arc<Mutex<GameState>>, username: &str) {
+    async fn cleanup(state: &Arc<Mutex<Boggle>>, username: &str) {
         let mut gamestate = state.lock().await;
         println!("Cleaning up player: {}", username);
         gamestate.players.remove(username);

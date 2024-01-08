@@ -9,8 +9,8 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 
 use crate::handlers::WebSockets;
+use crate::models::Boggle;
 use crate::render::Render;
-use crate::GameState;
 
 #[derive(serde::Deserialize)]
 pub struct PlayerName {
@@ -24,28 +24,26 @@ impl Handle {
         Html(Render::root()).into_response()
     }
 
-    pub async fn new_game(
-        Extension(gamestate): Extension<Arc<Mutex<GameState>>>,
-    ) -> impl IntoResponse {
-        let mut gamestate = gamestate.lock().await;
+    pub async fn new_game(Extension(boggle): Extension<Arc<Mutex<Boggle>>>) -> impl IntoResponse {
+        let mut boggle = boggle.lock().await;
 
-        gamestate.new_game().await; // Reset the game state
+        boggle.new_game().await; // Reset the game state
         (StatusCode::NO_CONTENT, ())
     }
 
     pub async fn get_player_score(
-        Extension(gamestate): Extension<Arc<Mutex<GameState>>>,
+        Extension(boggle): Extension<Arc<Mutex<Boggle>>>,
         Form(PlayerName { username }): Form<PlayerName>,
     ) -> impl IntoResponse {
-        let gamestate = gamestate.lock().await;
-        let player_score_html = gamestate.get_player_score(&username).await;
+        let boggle = boggle.lock().await;
+        let player_score_html = boggle.get_player_score(&username).await;
 
         Html(player_score_html).into_response()
     }
 
     pub async fn websocket(
         ws: WebSocketUpgrade,
-        State(state): State<Arc<Mutex<GameState>>>,
+        State(state): State<Arc<Mutex<Boggle>>>,
     ) -> impl IntoResponse {
         ws.on_upgrade(|socket| async move {
             println!("Websocket connection received");
