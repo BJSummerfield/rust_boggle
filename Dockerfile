@@ -6,8 +6,6 @@ WORKDIR /usr/src/boggle_game
 # Copy the source code and static files
 COPY ./src ./src
 COPY ./static ./static
-
-# Copy the Cargo manifest and lock files
 COPY ./Cargo.toml ./Cargo.toml
 COPY ./Cargo.lock ./Cargo.lock
 
@@ -28,6 +26,3 @@ EXPOSE 3000
 
 # Set the command to run the application
 CMD ["boggle_game"]
-
-
-

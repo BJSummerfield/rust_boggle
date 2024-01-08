@@ -7,7 +7,6 @@ use tower_http::services::ServeDir;
 
 mod handlers;
 mod models;
-mod player_state;
 mod render;
 
 use handlers::Handle;

@@ -23,7 +23,7 @@ struct WordSubmission {
 pub struct WebSockets {}
 
 impl WebSockets {
-    pub async fn new(ws: WebSocket, state: Arc<Mutex<Boggle>>) {
+    pub async fn new(ws: WebSocket, boggle: Arc<Mutex<Boggle>>) {
         println!("websocket connection made");
 
         //Broadcast tx/rx
@@ -34,14 +34,14 @@ impl WebSockets {
 
         Self::spawn_sender_task(ws_receiver, sender).await;
 
-        Self::handle_new_user(ws_sender.clone(), state.clone()).await;
+        Self::handle_new_user(ws_sender.clone(), boggle.clone()).await;
 
-        let username_opt = Self::handle_user_connection(&mut receiver, &ws_sender, &state).await;
+        let username_opt = Self::handle_user_connection(&mut receiver, &ws_sender, &boggle).await;
 
         match username_opt {
             Some(username) => {
-                Self::send_initial_game_state(&ws_sender, &state).await;
-                Self::monitor_websocket_connection(receiver, ws_sender, state, &username).await;
+                Self::send_initial_game_boggle(&ws_sender, &boggle).await;
+                Self::monitor_websocket_connection(receiver, ws_sender, boggle, &username).await;
             }
             None => {
                 println!("WebSocket connection closed before username submission.");
@@ -52,18 +52,18 @@ impl WebSockets {
     async fn monitor_websocket_connection(
         receiver: SplitStream<WebSocket>,
         ws_sender: UnboundedSender<Message>,
-        state: Arc<Mutex<Boggle>>,
+        boggle: Arc<Mutex<Boggle>>,
         username: &str,
     ) {
         //Sends game messages (html) to all users
         let mut send_task =
-            tokio::spawn(Self::spawn_receiver_task(state.clone(), ws_sender.clone()));
+            tokio::spawn(Self::spawn_receiver_task(boggle.clone(), ws_sender.clone()));
 
         //Receives messages from user and sends the user a response
         let mut recv_task = tokio::spawn(Self::receive_messages(
             receiver,
             ws_sender.clone(),
-            state.clone(),
+            boggle.clone(),
             username.to_string(),
         ));
 
@@ -82,7 +82,7 @@ impl WebSockets {
             result = (&mut recv_task) => handle_task_completion("Receive", &mut send_task, result),
         };
 
-        Self::cleanup(&state, username).await;
+        Self::cleanup(&boggle, username).await;
     }
 
     async fn spawn_sender_task(
@@ -99,8 +99,8 @@ impl WebSockets {
         });
     }
 
-    async fn handle_new_user(ws_sender: UnboundedSender<Message>, state: Arc<Mutex<Boggle>>) {
-        let new_user_html = state.lock().await.get_new_user().await;
+    async fn handle_new_user(ws_sender: UnboundedSender<Message>, boggle: Arc<Mutex<Boggle>>) {
+        let new_user_html = boggle.lock().await.get_new_user().await;
         if ws_sender.send(Message::Text(new_user_html)).is_err() {
             println!("Failed to send new user HTML");
         }
@@ -109,11 +109,11 @@ impl WebSockets {
     async fn handle_user_connection(
         receiver: &mut SplitStream<WebSocket>,
         ws_sender: &UnboundedSender<Message>,
-        state: &Arc<Mutex<Boggle>>,
+        boggle: &Arc<Mutex<Boggle>>,
     ) -> Option<String> {
         while let Some(message_result) = receiver.next().await {
             match message_result {
-                Ok(message) => match Self::process_message(message, ws_sender, state).await {
+                Ok(message) => match Self::process_message(message, ws_sender, boggle).await {
                     Ok(Some(username)) => return Some(username),
                     Ok(None) => continue,
                     Err(_) => return None,
@@ -130,10 +130,10 @@ impl WebSockets {
     async fn process_message(
         message: Message,
         ws_sender: &UnboundedSender<Message>,
-        state: &Arc<Mutex<Boggle>>,
+        boggle: &Arc<Mutex<Boggle>>,
     ) -> Result<Option<String>, String> {
         match message {
-            Message::Text(name) => Self::process_text_message(name, ws_sender, state).await,
+            Message::Text(name) => Self::process_text_message(name, ws_sender, boggle).await,
             Message::Close(_) => {
                 println!("WebSocket connection closed by client");
                 Ok(None)
@@ -148,7 +148,7 @@ impl WebSockets {
     async fn process_text_message(
         name: String,
         ws_sender: &UnboundedSender<Message>,
-        state: &Arc<Mutex<Boggle>>,
+        boggle: &Arc<Mutex<Boggle>>,
     ) -> Result<Option<String>, String> {
         #[derive(Deserialize, Debug)]
         struct Connect {
@@ -158,37 +158,37 @@ impl WebSockets {
         let connect = serde_json::from_str::<Connect>(&name)
             .map_err(|error| format!("Failed to parse connect message: {error}"))?;
 
-        let mut gamestate = state.lock().await;
-        if gamestate.players.contains_key(&connect.username) {
+        let mut boggle = boggle.lock().await;
+        if boggle.players.contains_key(&connect.username) {
             let _ = ws_sender.send(Message::Text(format!("{} is taken", connect.username)));
             Ok(None)
         } else {
-            gamestate.add_player(connect.username.clone(), ws_sender.clone());
+            boggle.add_player(connect.username.clone(), ws_sender.clone());
             Ok(Some(connect.username))
         }
     }
 
-    async fn send_initial_game_state(
+    async fn send_initial_game_boggle(
         ws_sender: &UnboundedSender<Message>,
-        state: &Arc<Mutex<Boggle>>,
+        boggle: &Arc<Mutex<Boggle>>,
     ) {
-        let initial_game_state = state.lock().await.get_game_state().await;
-        if ws_sender.send(Message::Text(initial_game_state)).is_err() {
-            println!("Failed to send initial game state");
+        let initial_game_boggle = boggle.lock().await.get_game_state().await;
+        if ws_sender.send(Message::Text(initial_game_boggle)).is_err() {
+            println!("Failed to send initial game boggle");
         }
     }
 
     async fn receive_messages(
         mut receiver: SplitStream<WebSocket>, // Changed to take ownership
         ws_sender: UnboundedSender<Message>,
-        state: Arc<Mutex<Boggle>>,
+        boggle: Arc<Mutex<Boggle>>,
         username: String,
     ) {
         while let Some(Ok(Message::Text(text))) = receiver.next().await {
             match serde_json::from_str::<WordSubmission>(&text) {
                 Ok(word_submission) => {
-                    let mut gamestate = state.lock().await;
-                    gamestate.submit_word(&username, &word_submission.word);
+                    let mut boggle = boggle.lock().await;
+                    boggle.submit_word(&username, &word_submission.word);
                 }
                 Err(error) => {
                     println!("Failed to parse word message: {error}");
@@ -204,10 +204,10 @@ impl WebSockets {
     }
 
     async fn spawn_receiver_task(
-        state: Arc<Mutex<Boggle>>,
+        boggle: Arc<Mutex<Boggle>>,
         ws_sender_clone: UnboundedSender<Message>,
     ) {
-        let tx = state.lock().await.tx.clone();
+        let tx = boggle.lock().await.tx.clone();
         let mut rx = tx.subscribe();
 
         while let Ok(msg) = rx.recv().await {
@@ -217,13 +217,13 @@ impl WebSockets {
         }
     }
 
-    async fn cleanup(state: &Arc<Mutex<Boggle>>, username: &str) {
-        let mut gamestate = state.lock().await;
+    async fn cleanup(boggle: &Arc<Mutex<Boggle>>, username: &str) {
+        let mut boggle = boggle.lock().await;
         println!("Cleaning up player: {}", username);
-        gamestate.players.remove(username);
-        if gamestate.players.is_empty() {
-            println!("No more players, resetting game state");
-            gamestate.set_state_to_starting().await;
+        boggle.players.remove(username);
+        if boggle.players.is_empty() {
+            println!("No more players, resetting game boggle");
+            boggle.set_state_to_starting().await;
         }
     }
 }

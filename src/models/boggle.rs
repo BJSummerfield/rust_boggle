@@ -1,5 +1,4 @@
-use crate::models::{Board, Dictionary};
-use crate::player_state::PlayerState;
+use crate::models::{Board, Dictionary, Player};
 use crate::render::Render;
 
 use axum::extract::ws::Message;
@@ -19,7 +18,7 @@ pub enum BoggleStateEnum {
 //create a game state struct to hold the game state and the broadcast channel sender for sending messages to the clients (players)
 #[derive(Debug)]
 pub struct Boggle {
-    pub players: HashMap<String, PlayerState>,
+    pub players: HashMap<String, Player>,
     state: BoggleStateEnum,
     board: Board,
     dictionary: Arc<Dictionary>,
@@ -60,7 +59,7 @@ impl Boggle {
         boggle
     }
 
-    fn clear_playerstates(&mut self) {
+    fn clear_players_state(&mut self) {
         for (_, player) in self.players.iter_mut() {
             player.found_words.clear();
             player.valid_words.clear();
@@ -69,7 +68,7 @@ impl Boggle {
     }
 
     pub fn add_player(&mut self, name: String, sender: UnboundedSender<Message>) {
-        self.players.entry(name).or_insert(PlayerState::new(sender));
+        self.players.entry(name).or_insert(Player::new(sender));
     }
 
     pub async fn get_new_user(&self) -> String {
@@ -102,7 +101,7 @@ impl Boggle {
         match self.state {
             BoggleStateEnum::InProgress => (),
             _ => {
-                self.clear_playerstates();
+                self.clear_players_state();
                 self.start_timer();
 
                 self.state = BoggleStateEnum::InProgress;
@@ -150,14 +149,14 @@ impl Boggle {
             return;
         }
 
-        if let Some(player_state) = self.players.get_mut(username) {
-            player_state.add_word(sanitized_word); // Add word to player's state
+        if let Some(player) = self.players.get_mut(username) {
+            player.add_word(sanitized_word); // Add word to player's state
 
             // Render the HTML for the submitted word
-            let submit_word_html = Render::word_submit(&player_state.found_words);
+            let submit_word_html = Render::word_submit(&player.found_words);
 
             // Send the HTML to the specific player
-            if let Err(e) = player_state
+            if let Err(e) = player
                 .sender
                 .send(axum::extract::ws::Message::Text(submit_word_html))
             {
@@ -211,7 +210,7 @@ impl Boggle {
                 Render::valid_words(&self.board.valid_words)
             }
             _ => match self.players.get(username) {
-                Some(player_state) => Render::valid_words(&player_state.valid_words),
+                Some(player) => Render::valid_words(&player.valid_words),
                 None => {
                     let markup = html! {
                         div {

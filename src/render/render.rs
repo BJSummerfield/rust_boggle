@@ -1,5 +1,4 @@
-use crate::models::Board;
-use crate::player_state::PlayerState;
+use crate::models::{Board, Player};
 use maud::{html, PreEscaped};
 use std::collections::HashMap;
 
@@ -110,7 +109,7 @@ impl Render {
         .into_string()
     }
 
-    pub fn gameover_state(board: &Board, players: &HashMap<String, PlayerState>) -> String {
+    pub fn gameover_state(board: &Board, players: &HashMap<String, Player>) -> String {
         // Sort players by score in descending order
         let mut sorted_players: Vec<_> = players.iter().collect();
         sorted_players.sort_by(|a, b| b.1.score.cmp(&a.1.score));
@@ -132,7 +131,7 @@ impl Render {
         .into_string()
     }
 
-    fn player_scores(board: &Board, sorted_players: &[(&String, &PlayerState)]) -> String {
+    fn player_scores(board: &Board, sorted_players: &[(&String, &Player)]) -> String {
         html! {
             (PreEscaped(Self::scores("Board Total".to_string(), board.total_score.to_string())))
             @for (player_name, player) in sorted_players {
