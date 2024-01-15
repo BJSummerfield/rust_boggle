@@ -3,6 +3,7 @@ use futures::{
     sink::SinkExt,
     stream::{SplitSink, SplitStream, StreamExt},
 };
+
 use serde::Deserialize;
 use std::sync::Arc;
 use tokio::{
@@ -12,6 +13,7 @@ use tokio::{
     },
     task::{JoinError, JoinHandle},
 };
+use tower_sessions::Session;
 
 use crate::models::{Boggle, PlayerId, PlayerIdSubmission};
 
@@ -23,10 +25,10 @@ struct WordSubmission {
 pub struct WebSockets {}
 
 impl WebSockets {
-    pub async fn new(ws: WebSocket, boggle: Arc<Mutex<Boggle>>) {
+    pub async fn new(ws: WebSocket, boggle: Arc<Mutex<Boggle>>, session: Session) {
         //Broadcast tx/rx
         let (sender, mut receiver) = ws.split();
-
+        println!("\nFrom Websocket struct: {:?}", session);
         //Direct tx/rx
         let (ws_sender, ws_receiver) = tokio::sync::mpsc::unbounded_channel::<Message>();
 

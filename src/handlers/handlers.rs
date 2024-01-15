@@ -7,6 +7,7 @@ use axum::{
 
 use std::sync::Arc;
 use tokio::sync::Mutex;
+use tower_sessions::Session;
 
 use crate::handlers::WebSockets;
 use crate::models::{Boggle, PlayerIdSubmission};
@@ -15,7 +16,9 @@ use crate::render::Render;
 pub struct Handle {}
 
 impl Handle {
-    pub async fn root() -> impl IntoResponse {
+    pub async fn root(session: Session) -> impl IntoResponse {
+        session.insert("username", "test").await.unwrap();
+        println!("\n{:?}", session);
         Html(Render::root()).into_response()
     }
 
@@ -39,7 +42,9 @@ impl Handle {
     pub async fn websocket(
         ws: WebSocketUpgrade,
         State(state): State<Arc<Mutex<Boggle>>>,
+        session: Session,
     ) -> impl IntoResponse {
-        ws.on_upgrade(|socket| async move { WebSockets::new(socket, state).await })
+        print!("\nFrom Websocket: {:?}", session);
+        ws.on_upgrade(|socket| async move { WebSockets::new(socket, state, session).await })
     }
 }
