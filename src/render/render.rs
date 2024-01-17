@@ -58,6 +58,7 @@ impl Render {
     }
 
     pub fn starting_state() -> String {
+        println!("\n rendering html");
         html! {
             div id = "game-timer" {
                 (PreEscaped(Self::new_game_button()))
@@ -186,6 +187,27 @@ impl Render {
 
     pub fn root() -> String {
         html! {
+            (PreEscaped(Self::render_header()))
+            (PreEscaped(Self::shell_template()))
+        }
+        .into_string()
+    }
+
+    pub fn shell_template() -> String {
+        html! {
+            (PreEscaped(Self::render_header()))
+            div id="game-container" hx-ext="ws" ws-connect="/ws" {
+                div id="game-timer" {}
+                div id="game-board" {}
+                div id="word-input" {}
+                div id="valid-words" {}
+            }
+        }
+        .into_string()
+    }
+
+    fn render_header() -> String {
+        html! {
             (maud::DOCTYPE)
             html {
                 head {
@@ -195,18 +217,40 @@ impl Render {
                         integrity="sha384-QFjmbokDn2DjBjq+fM+8LUIVrAgqcNW2s0PjAxHETgRn9l4fvX31ZxDxvwQnyMOX"
                         crossorigin="anonymous" {}
                     script src="https://unpkg.com/htmx.org/dist/ext/ws.js" {}
-                   link rel="stylesheet" href="/static/style.css";
-                }
-                body hx-ext="ws" ws-connect="/ws" {
-                    h1 { "Boggle Game" }
-                    // div hx-ext="ws" ws-connect="/ws" {
-                        div id="game-timer" {}
-                        div id="game-board" {}
-                        div id="word-input" {}
-                        div id="valid-words" {}
-                    // }
+                    link rel="stylesheet" href="/static/style.css";
                 }
             }
+        }.into_string()
+    }
+
+    pub fn root_no_username() -> String {
+        html! {
+            (PreEscaped(Self::render_header()))
+            body {
+                h1 { "Boggle Game" }
+                div id="main-container" {
+                    div id="word-input" {
+                        (PreEscaped(Self::username_form()))
+                    }
+                }
+            }
+        }
+        .into_string()
+    }
+
+    pub fn username_form() -> String {
+        html! {
+            form method="post" hx-post="/username" hx-target="#main-container" {
+                input type="text"
+                name="username"
+                placeholder="Enter username"
+                maxlength="9"
+                required
+                autofocus
+                {}
+                button type="submit" style="display: none;" { "Submit" }
+            }
+
         }
         .into_string()
     }

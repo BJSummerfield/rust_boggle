@@ -15,7 +15,7 @@ use tokio::{
 };
 use tower_sessions::Session;
 
-use crate::models::{Boggle, PlayerId, PlayerIdSubmission};
+use crate::models::{Boggle, PlayerId};
 
 #[derive(Deserialize, Debug)]
 struct WordSubmission {
@@ -27,16 +27,15 @@ pub struct WebSockets {}
 impl WebSockets {
     pub async fn new(ws: WebSocket, boggle: Arc<Mutex<Boggle>>, session: Session) {
         //Broadcast tx/rx
-        let (sender, mut receiver) = ws.split();
-        println!("\nFrom Websocket struct: {:?}", session);
+        let (sender, receiver) = ws.split();
         //Direct tx/rx
         let (ws_sender, ws_receiver) = tokio::sync::mpsc::unbounded_channel::<Message>();
 
         Self::spawn_sender_task(ws_receiver, sender).await;
-
-        Self::handle_new_user(ws_sender.clone(), boggle.clone()).await;
-
-        let username_opt = Self::handle_user_connection(&mut receiver, &ws_sender, &boggle).await;
+        if let Err(e) = ws_sender.send(Message::Text("connection created".to_string())) {
+            eprintln!("Failed to send first connection: {:?}", e);
+        }
+        let username_opt = Self::handle_user_connection(&ws_sender, &boggle, &session).await;
 
         match username_opt {
             Some(username) => {
@@ -47,6 +46,19 @@ impl WebSockets {
         }
     }
 
+    async fn spawn_sender_task(
+        mut ws_receiver: UnboundedReceiver<Message>,
+        mut sender: SplitSink<WebSocket, Message>,
+    ) -> JoinHandle<()> {
+        tokio::spawn(async move {
+            while let Some(msg) = ws_receiver.recv().await {
+                if let Err(error) = sender.send(msg).await {
+                    eprintln!("Failed to send message: {:?}", error);
+                    break;
+                }
+            }
+        })
+    }
     async fn monitor_websocket_connection(
         receiver: SplitStream<WebSocket>,
         ws_sender: UnboundedSender<Message>,
@@ -84,79 +96,35 @@ impl WebSockets {
         Self::cleanup(&boggle, &username).await;
     }
 
-    async fn spawn_sender_task(
-        mut ws_receiver: UnboundedReceiver<Message>,
-        mut sender: SplitSink<WebSocket, Message>,
-    ) {
-        tokio::spawn(async move {
-            while let Some(message) = ws_receiver.recv().await {
-                if let Err(error) = sender.send(message).await {
-                    eprintln!("Error sending message to WebSocket: {:?}", error);
-                    break;
-                }
-            }
-        });
-    }
-
-    async fn handle_new_user(ws_sender: UnboundedSender<Message>, boggle: Arc<Mutex<Boggle>>) {
-        let new_user_html = boggle.lock().await.get_new_user().await;
-        if ws_sender.send(Message::Text(new_user_html)).is_err() {
-            eprintln!("Failed to send new user HTML");
-        }
-    }
-
     async fn handle_user_connection(
-        receiver: &mut SplitStream<WebSocket>,
         ws_sender: &UnboundedSender<Message>,
         boggle: &Arc<Mutex<Boggle>>,
+        session: &Session,
     ) -> Option<PlayerId> {
-        while let Some(message_result) = receiver.next().await {
-            match message_result {
-                Ok(message) => match Self::process_message(message, ws_sender, boggle).await {
-                    Ok(Some(username)) => return Some(username),
-                    Ok(None) => continue,
-                    Err(_) => return None,
-                },
-                Err(e) => {
-                    eprintln!("Error receiving message: {:?}", e);
-                    return None;
-                }
-            }
+        if let Err(e) = ws_sender.send(Message::Text("Handle user COnnection".to_string())) {
+            eprintln!("Failed to send initial game boggle: {:?}", e);
         }
-        None // WebSocket connection closed before username was submitted
-    }
 
-    async fn process_message(
-        message: Message,
-        ws_sender: &UnboundedSender<Message>,
-        boggle: &Arc<Mutex<Boggle>>,
-    ) -> Result<Option<PlayerId>, String> {
-        match message {
-            Message::Text(name) => Self::process_text_message(name, ws_sender, boggle).await,
-            Message::Close(_) => Ok(None),
-            _ => Ok(None),
-        }
-    }
+        let player_id = session
+            .get("id")
+            .await
+            .unwrap()
+            .expect("No session_id found");
 
-    async fn process_text_message(
-        message: String,
-        ws_sender: &UnboundedSender<Message>,
-        boggle: &Arc<Mutex<Boggle>>,
-    ) -> Result<Option<PlayerId>, String> {
-        let incoming_message = serde_json::from_str::<PlayerIdSubmission>(&message)
-            .map_err(|error| format!("Failed to parse incoming message: {error}"))?;
-
-        let player_id = PlayerId(incoming_message.username.to_string()); // Create PlayerId from the extracted username
+        let username: PlayerId = session
+            .get("username")
+            .await
+            .unwrap()
+            .expect("No username found");
 
         let mut boggle = boggle.lock().await;
         if boggle.players.contains_key(&player_id) {
-            let _ = ws_sender.send(Message::Text(format!("{} is taken", player_id)));
-            Ok(None)
+            Some(player_id)
         } else {
             boggle
                 .players
-                .add_player(player_id.clone(), ws_sender.clone());
-            Ok(Some(player_id))
+                .add_player(player_id.clone(), ws_sender.clone(), username.clone());
+            Some(player_id)
         }
     }
 
@@ -165,8 +133,10 @@ impl WebSockets {
         boggle: &Arc<Mutex<Boggle>>,
     ) {
         let initial_game_boggle = boggle.lock().await.get_game_state().await;
-        if ws_sender.send(Message::Text(initial_game_boggle)).is_err() {
-            eprintln!("Failed to send initial game boggle");
+        println!("sender: {:?}", ws_sender);
+        // Attempt to send the message and capture the error if it occurs
+        if let Err(e) = ws_sender.send(Message::Text(initial_game_boggle)) {
+            eprintln!("Failed to send initial game boggle: {:?}", e);
         }
     }
 

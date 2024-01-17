@@ -61,6 +61,7 @@ impl Boggle {
     }
 
     pub async fn get_game_state(&self) -> String {
+        println!("\n Current State: {:?}", self.state);
         match self.state {
             BoggleStateEnum::Starting => Render::starting_state(),
             BoggleStateEnum::InProgress => {

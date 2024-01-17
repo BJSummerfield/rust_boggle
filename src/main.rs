@@ -21,13 +21,14 @@ async fn main() {
     let session_store = MemoryStore::default();
     let session_layer = SessionManagerLayer::new(session_store)
         .with_secure(false)
-        .with_expiry(Expiry::OnInactivity(Duration::seconds(10)));
+        .with_expiry(Expiry::OnInactivity(Duration::seconds(1000)));
     // .with_expiry(Expiry::OnSessionEnd);
 
     let boggle = Boggle::new();
     let styles_path = env::var("STATIC_FILES_PATH").unwrap_or_else(|_| "/app/static".to_string());
     let app = Router::new()
         .route("/", get(Handle::root))
+        .route("/username", post(Handle::username))
         .route("/new_game", post(Handle::new_game))
         .route("/get_score", post(Handle::get_player_score))
         .layer(Extension(Arc::clone(&boggle)))

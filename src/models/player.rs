@@ -1,11 +1,11 @@
 use crate::models::Board;
 use axum::extract::ws::Message;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt;
 use tokio::sync::mpsc::UnboundedSender;
 
-#[derive(Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct PlayerIdSubmission {
     pub username: PlayerId,
 }
@@ -22,8 +22,16 @@ impl PlayerList {
         }
     }
 
-    pub fn add_player(&mut self, name: PlayerId, sender: UnboundedSender<Message>) {
-        self.players.entry(name).or_insert(Player::new(sender));
+    pub fn add_player(
+        &mut self,
+        id: PlayerId,
+        sender: UnboundedSender<Message>,
+        username: PlayerId,
+    ) {
+        self.players
+            .entry(id)
+            .or_insert(Player::new(sender, username));
+        println!("Players: {:?}", self.players);
     }
 
     pub fn clear_state(&mut self) {
@@ -65,7 +73,7 @@ impl PlayerList {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Deserialize, Serialize)]
 pub struct PlayerId(pub String);
 
 impl fmt::Display for PlayerId {
@@ -81,15 +89,17 @@ pub struct Player {
     pub score: u32,
     pub sender: UnboundedSender<Message>,
     pub valid_words: Vec<(String, String)>,
+    pub username: PlayerId,
 }
 
 impl Player {
-    pub fn new(sender: UnboundedSender<Message>) -> Self {
+    pub fn new(sender: UnboundedSender<Message>, username: PlayerId) -> Self {
         Self {
             found_words: Vec::new(),
             score: 0,
             sender,
             valid_words: Vec::new(),
+            username,
         }
     }
 

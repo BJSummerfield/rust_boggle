@@ -4,22 +4,58 @@ use axum::{
     response::{Html, IntoResponse},
     Extension,
 };
+use uuid::Uuid;
 
-use std::sync::Arc;
+use std::{
+    sync::Arc,
+    time::{SystemTime, UNIX_EPOCH},
+};
 use tokio::sync::Mutex;
 use tower_sessions::Session;
 
 use crate::handlers::WebSockets;
 use crate::models::{Boggle, PlayerIdSubmission};
 use crate::render::Render;
+use serde::{Deserialize, Serialize};
 
+#[derive(Default, Deserialize, Serialize, Debug)]
+pub struct User {
+    pub username: String,
+}
 pub struct Handle {}
 
 impl Handle {
     pub async fn root(session: Session) -> impl IntoResponse {
-        session.insert("username", "test").await.unwrap();
+        Self::update_last_seen(&session).await;
+
+        if session.get::<String>("id").await.unwrap_or(None).is_none() {
+            // Generate a new UUID and store it in the session
+            let new_id = Uuid::new_v4().to_string();
+            session
+                .insert("id", &new_id)
+                .await
+                .expect("Failed to insert new ID into session");
+        }
+
+        match session.get::<String>("username").await {
+            Ok(Some(username)) => {
+                println!("Username found in session: {}", username);
+                Html(Render::root()).into_response()
+            }
+            _ => Html(Render::root_no_username()).into_response(),
+        }
+    }
+
+    pub async fn username(
+        session: Session,
+        Form(PlayerIdSubmission { username }): Form<PlayerIdSubmission>,
+    ) -> impl IntoResponse {
+        session
+            .insert("username", username)
+            .await
+            .expect("Could not serialize.");
         println!("\n{:?}", session);
-        Html(Render::root()).into_response()
+        Html(Render::shell_template()).into_response()
     }
 
     pub async fn new_game(Extension(boggle): Extension<Arc<Mutex<Boggle>>>) -> impl IntoResponse {
@@ -44,7 +80,18 @@ impl Handle {
         State(state): State<Arc<Mutex<Boggle>>>,
         session: Session,
     ) -> impl IntoResponse {
-        print!("\nFrom Websocket: {:?}", session);
         ws.on_upgrade(|socket| async move { WebSockets::new(socket, state, session).await })
+    }
+
+    async fn update_last_seen(session: &Session) {
+        let current_timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("Time went backwards")
+            .as_secs();
+
+        session
+            .insert("last_seen", current_timestamp)
+            .await
+            .expect("Failed to insert last_seen into session");
     }
 }
