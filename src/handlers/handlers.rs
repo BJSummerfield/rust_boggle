@@ -13,14 +13,19 @@ use std::{
 use tokio::sync::Mutex;
 use tower_sessions::Session;
 
-use crate::handlers::WebSockets;
 use crate::models::{Boggle, PlayerIdSubmission};
 use crate::render::Render;
+use crate::{handlers::WebSockets, models::PlayerId};
 use serde::{Deserialize, Serialize};
 
 #[derive(Default, Deserialize, Serialize, Debug)]
 pub struct User {
     pub username: String,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct WordSubmission {
+    word: String,
 }
 pub struct Handle {}
 
@@ -58,6 +63,22 @@ impl Handle {
         Html(Render::shell_template()).into_response()
     }
 
+    pub async fn submit_word(
+        session: Session,
+        Extension(boggle): Extension<Arc<Mutex<Boggle>>>,
+        Form(WordSubmission { word }): Form<WordSubmission>,
+    ) -> impl IntoResponse {
+        let player_id = session
+            .get::<PlayerId>("id")
+            .await
+            .expect("Could not deserialize.")
+            .unwrap();
+
+        let mut boggle = boggle.lock().await;
+        let word_submission_html = boggle.submit_word(&player_id, &word);
+
+        Html(word_submission_html).into_response()
+    }
     pub async fn new_game(Extension(boggle): Extension<Arc<Mutex<Boggle>>>) -> impl IntoResponse {
         let mut boggle = boggle.lock().await;
 

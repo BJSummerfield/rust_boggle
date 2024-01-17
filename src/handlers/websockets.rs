@@ -32,9 +32,7 @@ impl WebSockets {
         let (ws_sender, ws_receiver) = tokio::sync::mpsc::unbounded_channel::<Message>();
 
         Self::spawn_sender_task(ws_receiver, sender).await;
-        if let Err(e) = ws_sender.send(Message::Text("connection created".to_string())) {
-            eprintln!("Failed to send first connection: {:?}", e);
-        }
+
         let username_opt = Self::handle_user_connection(&ws_sender, &boggle, &session).await;
 
         match username_opt {
@@ -42,7 +40,9 @@ impl WebSockets {
                 Self::send_initial_game_boggle(&ws_sender, &boggle).await;
                 Self::monitor_websocket_connection(receiver, ws_sender, boggle, username).await;
             }
-            None => {}
+            None => {
+                //handle reconnection and break websocket connection
+            }
         }
     }
 
@@ -65,18 +65,12 @@ impl WebSockets {
         boggle: Arc<Mutex<Boggle>>,
         username: PlayerId,
     ) {
-        let username_clone = username.clone();
         //Sends game messages (html) to all users
         let mut send_task =
             tokio::spawn(Self::spawn_receiver_task(boggle.clone(), ws_sender.clone()));
 
         //Receives messages from user and sends the user a response
-        let mut recv_task = tokio::spawn(Self::receive_messages(
-            receiver,
-            ws_sender.clone(),
-            boggle.clone(),
-            username_clone,
-        ));
+        let mut recv_task = tokio::spawn(Self::receive_messages(receiver));
 
         // Closure to handle task completion
         let handle_task_completion =
@@ -101,10 +95,6 @@ impl WebSockets {
         boggle: &Arc<Mutex<Boggle>>,
         session: &Session,
     ) -> Option<PlayerId> {
-        if let Err(e) = ws_sender.send(Message::Text("Handle user COnnection".to_string())) {
-            eprintln!("Failed to send initial game boggle: {:?}", e);
-        }
-
         let player_id = session
             .get("id")
             .await
@@ -133,33 +123,25 @@ impl WebSockets {
         boggle: &Arc<Mutex<Boggle>>,
     ) {
         let initial_game_boggle = boggle.lock().await.get_game_state().await;
-        println!("sender: {:?}", ws_sender);
         // Attempt to send the message and capture the error if it occurs
         if let Err(e) = ws_sender.send(Message::Text(initial_game_boggle)) {
             eprintln!("Failed to send initial game boggle: {:?}", e);
         }
     }
 
-    async fn receive_messages(
-        mut receiver: SplitStream<WebSocket>, // Changed to take ownership
-        ws_sender: UnboundedSender<Message>,
-        boggle: Arc<Mutex<Boggle>>,
-        username: PlayerId,
-    ) {
-        while let Some(Ok(Message::Text(text))) = receiver.next().await {
-            match serde_json::from_str::<WordSubmission>(&text) {
-                Ok(word_submission) => {
-                    let mut boggle = boggle.lock().await;
-                    boggle.submit_word(&username, &word_submission.word);
+    async fn receive_messages(mut receiver: SplitStream<WebSocket>) {
+        while let Some(message) = receiver.next().await {
+            match message {
+                Ok(Message::Close(_)) => {
+                    eprintln!("WebSocket connection closed by client.");
+                    break;
                 }
-                Err(error) => {
-                    eprintln!("Failed to parse word message: {error}");
-                    if ws_sender
-                        .send(Message::Text("Failed to parse word message".to_string()))
-                        .is_err()
-                    {
-                        eprintln!("Failed to send error message");
-                    }
+                Ok(_) => {
+                    // Ignore other messages.
+                }
+                Err(e) => {
+                    eprintln!("Error in WebSocket connection: {:?}", e);
+                    break;
                 }
             }
         }

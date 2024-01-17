@@ -45,7 +45,8 @@ impl Render {
             input type="text"
             name="word"
             placeholder="Enter word"
-            ws-send
+            hx-post="/submit_word"
+            hx-target="#valid-words"
             title="Only alphabetic characters; 2-16 letters."
             maxlength="16"
             minlength="2"
@@ -98,7 +99,7 @@ impl Render {
                        li {
                            div class="word-container" {
                                span class="word" { (word) }
-                               span class="definition" {}
+                               // span class="definition" {}
                            }
                        }
                    }
@@ -188,7 +189,10 @@ impl Render {
     pub fn root() -> String {
         html! {
             (PreEscaped(Self::render_header()))
-            (PreEscaped(Self::shell_template()))
+            body {
+                h1 { "Boggle Game" }
+                (PreEscaped(Self::shell_template()))
+            }
         }
         .into_string()
     }

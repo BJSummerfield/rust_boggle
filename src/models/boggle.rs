@@ -43,7 +43,7 @@ impl Boggle {
             dictionary,
             boggle_channel_tx,
             state: BoggleStateEnum::Starting,
-            timer: 10,
+            timer: 300,
             timer_cancel_token,
             tx,
         }));
@@ -61,7 +61,6 @@ impl Boggle {
     }
 
     pub async fn get_game_state(&self) -> String {
-        println!("\n Current State: {:?}", self.state);
         match self.state {
             BoggleStateEnum::Starting => Render::starting_state(),
             BoggleStateEnum::InProgress => {
@@ -112,7 +111,7 @@ impl Boggle {
     //submit_word function checks if the word is possible in the board and adds it to the players
     //found words if it is
 
-    pub fn submit_word(&mut self, username: &PlayerId, word: &str) {
+    pub fn submit_word(&mut self, player_id: &PlayerId, word: &str) {
         let sanitized_word = word.trim().to_uppercase();
 
         // Check if the word contains spaces or non-alphabetic characters
@@ -125,7 +124,7 @@ impl Boggle {
             return;
         }
 
-        if let Some(player) = self.players.get_mut(&username) {
+        if let Some(player) = self.players.get_mut(&player_id) {
             player.add_word(sanitized_word); // Add word to player's state
 
             // Render the HTML for the submitted word

@@ -29,6 +29,7 @@ async fn main() {
     let app = Router::new()
         .route("/", get(Handle::root))
         .route("/username", post(Handle::username))
+        .route("/submit_word", post(Handle::submit_word))
         .route("/new_game", post(Handle::new_game))
         .route("/get_score", post(Handle::get_player_score))
         .layer(Extension(Arc::clone(&boggle)))
