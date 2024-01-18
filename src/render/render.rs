@@ -156,18 +156,18 @@ impl Render {
     fn player_scores(board: &Board, players: &PlayerList) -> String {
         let sorted_players = players.get_players_sorted_by_score();
         html! {
-            (PreEscaped(Self::scores("Board Total".to_string(), board.total_score.to_string())))
-            @for (player_name, player) in sorted_players {
-                (PreEscaped(Self::scores(player_name.to_string(), player.score.to_string())))
+            (PreEscaped(Self::scores("Board Total".to_string(), "Board Total".to_string(), board.total_score.to_string())))
+            @for (player_id, player) in sorted_players {
+                (PreEscaped(Self::scores(player_id.to_string(), player.username.to_string(), player.score.to_string())))
             }
         }
         .into_string()
     }
 
-    fn scores(name: String, score: String) -> String {
+    fn scores(player_id: String, name: String, score: String) -> String {
         html! {
             form action="/get_player_score" method="post" hx-post="/get_score" hx-trigger="click" hx-target="#valid-words" {
-                input type="hidden" name="username" value=(name) {}
+                input type="hidden" name="username" value=(player_id) {}
                 div class="player-container"  {
                     (name) ": " (score)
                 }

@@ -4,7 +4,6 @@ use futures::{
     stream::{SplitSink, SplitStream, StreamExt},
 };
 
-use serde::Deserialize;
 use std::sync::Arc;
 use tokio::{
     sync::{
@@ -104,6 +103,7 @@ impl WebSockets {
 
         let mut boggle = boggle.lock().await;
         if boggle.players.contains_key(&player_id) {
+            boggle.players.mark_active(&player_id);
             Some(player_id)
         } else {
             boggle
@@ -160,8 +160,11 @@ impl WebSockets {
     async fn cleanup(boggle: &Arc<Mutex<Boggle>>, username: &PlayerId) {
         println!("Cleaning up player: {:?}", username);
         let mut boggle = boggle.lock().await;
-        boggle.players.remove(&username);
-        if boggle.players.is_empty() {
+
+        boggle.players.mark_inactive(&username);
+
+        if boggle.players.all_inactive() {
+            boggle.players.remove_inactive();
             boggle.set_state_to_starting().await;
         }
     }

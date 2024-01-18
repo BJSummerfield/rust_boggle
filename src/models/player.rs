@@ -34,6 +34,26 @@ impl PlayerList {
         println!("Players: {:?}", self.players);
     }
 
+    pub fn remove_inactive(&mut self) {
+        self.players.retain(|_, player| player.active);
+    }
+
+    pub fn all_inactive(&self) -> bool {
+        self.players.values().all(|player| !player.active)
+    }
+
+    pub fn mark_inactive(&mut self, player_id: &PlayerId) {
+        if let Some(player) = self.players.get_mut(&player_id) {
+            player.mark_inactive();
+        }
+    }
+
+    pub fn mark_active(&mut self, player_id: &PlayerId) {
+        if let Some(player) = self.players.get_mut(&player_id) {
+            player.mark_active();
+        }
+    }
+
     pub fn clear_state(&mut self) {
         for player in self.players.values_mut() {
             player.found_words.clear();
@@ -60,13 +80,13 @@ impl PlayerList {
         self.players.values_mut()
     }
 
-    pub fn is_empty(&self) -> bool {
-        self.players.is_empty()
-    }
-
-    pub fn remove(&mut self, player_id: &PlayerId) -> Option<Player> {
-        self.players.remove(player_id)
-    }
+    // pub fn is_empty(&self) -> bool {
+    //     self.players.is_empty()
+    // }
+    //
+    // pub fn remove(&mut self, player_id: &PlayerId) -> Option<Player> {
+    //     self.players.remove(player_id)
+    // }
 
     pub fn contains_key(&self, player_id: &PlayerId) -> bool {
         self.players.contains_key(player_id)
@@ -90,6 +110,7 @@ pub struct Player {
     pub sender: UnboundedSender<Message>,
     pub valid_words: Vec<(String, String)>,
     pub username: PlayerId,
+    pub active: bool,
 }
 
 impl Player {
@@ -100,6 +121,7 @@ impl Player {
             sender,
             valid_words: Vec::new(),
             username,
+            active: true,
         }
     }
 
@@ -117,5 +139,13 @@ impl Player {
                     .push((found_word.clone(), definition.clone()));
             }
         }
+    }
+
+    pub fn mark_inactive(&mut self) {
+        self.active = false;
+    }
+
+    pub fn mark_active(&mut self) {
+        self.active = true;
     }
 }

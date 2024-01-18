@@ -43,7 +43,7 @@ impl Boggle {
             dictionary,
             boggle_channel_tx,
             state: BoggleStateEnum::Starting,
-            timer: 310,
+            timer: 10,
             timer_cancel_token,
             tx,
         }));
@@ -84,6 +84,7 @@ impl Boggle {
         match self.state {
             BoggleStateEnum::InProgress => (),
             _ => {
+                self.players.remove_inactive();
                 self.players.clear_state();
                 self.start_timer();
 
