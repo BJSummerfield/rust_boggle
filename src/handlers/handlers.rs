@@ -79,6 +79,7 @@ impl Handle {
 
         Html(word_submission_html).into_response()
     }
+
     pub async fn new_game(Extension(boggle): Extension<Arc<Mutex<Boggle>>>) -> impl IntoResponse {
         let mut boggle = boggle.lock().await;
 

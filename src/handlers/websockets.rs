@@ -17,11 +17,6 @@ use tower_sessions::Session;
 
 use crate::models::{Boggle, PlayerId};
 
-#[derive(Deserialize, Debug)]
-struct WordSubmission {
-    word: String,
-}
-
 pub struct WebSockets {}
 
 impl WebSockets {
@@ -33,12 +28,12 @@ impl WebSockets {
 
         Self::spawn_sender_task(ws_receiver, sender).await;
 
-        let username_opt = Self::handle_user_connection(&ws_sender, &boggle, &session).await;
+        let player_id_opt = Self::handle_user_connection(&ws_sender, &boggle, &session).await;
 
-        match username_opt {
-            Some(username) => {
-                Self::send_initial_game_boggle(&ws_sender, &boggle).await;
-                Self::monitor_websocket_connection(receiver, ws_sender, boggle, username).await;
+        match player_id_opt {
+            Some(player_id) => {
+                Self::send_initial_game_boggle(&ws_sender, &boggle, &player_id).await;
+                Self::monitor_websocket_connection(receiver, ws_sender, boggle, player_id).await;
             }
             None => {
                 //handle reconnection and break websocket connection
@@ -121,8 +116,9 @@ impl WebSockets {
     async fn send_initial_game_boggle(
         ws_sender: &UnboundedSender<Message>,
         boggle: &Arc<Mutex<Boggle>>,
+        player_id: &PlayerId,
     ) {
-        let initial_game_boggle = boggle.lock().await.get_game_state().await;
+        let initial_game_boggle = boggle.lock().await.get_game_state(player_id).await;
         // Attempt to send the message and capture the error if it occurs
         if let Err(e) = ws_sender.send(Message::Text(initial_game_boggle)) {
             eprintln!("Failed to send initial game boggle: {:?}", e);
@@ -162,6 +158,7 @@ impl WebSockets {
     }
 
     async fn cleanup(boggle: &Arc<Mutex<Boggle>>, username: &PlayerId) {
+        println!("Cleaning up player: {:?}", username);
         let mut boggle = boggle.lock().await;
         boggle.players.remove(&username);
         if boggle.players.is_empty() {

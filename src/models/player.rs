@@ -103,9 +103,9 @@ impl Player {
         }
     }
 
-    pub fn add_word(&mut self, word: String) {
+    pub fn add_word(&mut self, word: &String) {
         if !self.found_words.contains(&word) {
-            self.found_words.push(word);
+            self.found_words.push(word.to_string())
         }
     }
 

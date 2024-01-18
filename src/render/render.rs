@@ -46,7 +46,8 @@ impl Render {
             name="word"
             placeholder="Enter word"
             hx-post="/submit_word"
-            hx-target="#valid-words"
+            hx-target="#found-words"
+            hx-swap="beforeend"
             title="Only alphabetic characters; 2-16 letters."
             maxlength="16"
             minlength="2"
@@ -54,6 +55,15 @@ impl Render {
             autofocus
             {}
             script { "document.addEventListener('DOMContentLoaded', function() { document.getElementsByName('word')[0].focus(); });" }
+        }
+        .into_string()
+    }
+
+    pub fn invalid_word_submission() -> String {
+        html! {
+            div id="word-input" hx-swap-oob="true" {
+                (PreEscaped(Self::word_input()))
+            }
         }
         .into_string()
     }
@@ -72,7 +82,7 @@ impl Render {
         .into_string()
     }
 
-    pub fn inprogress_state(timer: &str, board: &Board) -> String {
+    pub fn inprogress_state(timer: &str, board: &Board, player_words: &[String]) -> String {
         html! {
             div id="game-timer" {
             (timer)
@@ -83,29 +93,43 @@ impl Render {
             div id="word-input" {
                 (PreEscaped(Self::word_input()))
             }
-            div id="valid-words" {}
+            div id="valid-words" {
+                (PreEscaped(Self::found_words_list(&player_words)))
+
+            }
         }
         .into_string()
     }
 
-    pub fn word_submit(found_words: &[String]) -> String {
+    fn found_words_list(found_words: &[String]) -> String {
         html! {
-            div id="word-input" {
-                (PreEscaped(Self::word_input()))
-            }
-            div id="valid-words" {
-                ul {
-                   @for word in found_words {
-                       li {
-                           div class="word-container" {
-                               span class="word" { (word) }
-                               // span class="definition" {}
-                           }
-                       }
-                   }
+            ul id="found-words" {
+                @for word in found_words {
+                    (PreEscaped(Self::word_item(&word)))
                 }
             }
 
+        }
+        .into_string()
+    }
+
+    fn word_item(word: &String) -> String {
+        html! {
+            li {
+                div class="word-container" {
+                    span class="word" { (word) }
+                }
+            }
+        }
+        .into_string()
+    }
+
+    pub fn word_submit(word: String) -> String {
+        html! {
+            div id="word-input" hx-swap-oob="true" {
+                (PreEscaped(Self::word_input()))
+            }
+            (PreEscaped(Self::word_item(&word)))
         }
         .into_string()
     }

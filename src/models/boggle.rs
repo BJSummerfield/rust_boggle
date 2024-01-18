@@ -43,7 +43,7 @@ impl Boggle {
             dictionary,
             boggle_channel_tx,
             state: BoggleStateEnum::Starting,
-            timer: 300,
+            timer: 310,
             timer_cancel_token,
             tx,
         }));
@@ -60,7 +60,13 @@ impl Boggle {
         Render::new_user()
     }
 
-    pub async fn get_game_state(&self) -> String {
+    pub async fn get_game_state(&self, player_id: &PlayerId) -> String {
+        let player = self.players.get(player_id);
+        let found_words = match player {
+            Some(p) => &p.found_words,
+            None => return "Player not found".to_string(),
+        };
+
         match self.state {
             BoggleStateEnum::Starting => Render::starting_state(),
             BoggleStateEnum::InProgress => {
@@ -68,7 +74,7 @@ impl Boggle {
                 let seconds = *&self.timer % 60;
 
                 let fmt_timer = format!("{}:{:02}", minutes, seconds);
-                Render::inprogress_state(&fmt_timer, &self.board)
+                Render::inprogress_state(&fmt_timer, &self.board, found_words)
             }
             BoggleStateEnum::GameOver => Render::gameover_state(&self.board, &self.players),
         }
@@ -88,7 +94,7 @@ impl Boggle {
                 let seconds = *&self.timer % 60;
 
                 let fmt_timer = format!("{}:{:02}", minutes, seconds);
-                let inprogress_html = Render::inprogress_state(&fmt_timer, &self.board);
+                let inprogress_html = Render::inprogress_state(&fmt_timer, &self.board, &vec![]);
                 self.broadcast_state(inprogress_html);
             }
         }
@@ -108,36 +114,28 @@ impl Boggle {
         }
     }
 
-    //submit_word function checks if the word is possible in the board and adds it to the players
-    //found words if it is
-
-    pub fn submit_word(&mut self, player_id: &PlayerId, word: &str) {
+    pub fn submit_word(&mut self, player_id: &PlayerId, word: &str) -> String {
         let sanitized_word = word.trim().to_uppercase();
 
-        // Check if the word contains spaces or non-alphabetic characters
-        if sanitized_word.contains(' ') || sanitized_word.chars().any(|c| !c.is_alphabetic()) {
-            return;
+        if !Boggle::is_valid_word(&sanitized_word) {
+            return Render::invalid_word_submission();
         }
 
-        // Check word length constraints
-        if sanitized_word.len() <= 2 || sanitized_word.len() > 16 {
-            return;
-        }
+        let player = match self.players.get_mut(player_id) {
+            Some(player) => player,
+            None => return Render::invalid_word_submission(),
+        };
 
-        if let Some(player) = self.players.get_mut(&player_id) {
-            player.add_word(sanitized_word); // Add word to player's state
+        player.add_word(&sanitized_word);
+        Render::word_submit(sanitized_word)
+    }
 
-            // Render the HTML for the submitted word
-            let submit_word_html = Render::word_submit(&player.found_words);
-
-            // Send the HTML to the specific player
-            if let Err(e) = player
-                .sender
-                .send(axum::extract::ws::Message::Text(submit_word_html))
-            {
-                eprintln!("Failed to send submit word HTML to player: {}", e);
-            }
-        }
+    //maybe move this to the boggleboard
+    fn is_valid_word(word: &str) -> bool {
+        !(word.contains(' ')
+            || word.chars().any(|c| !c.is_alphabetic())
+            || word.len() <= 2
+            || word.len() > 16)
     }
 
     pub async fn set_state_to_starting(&mut self) {
