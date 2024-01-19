@@ -56,10 +56,6 @@ impl Boggle {
         boggle
     }
 
-    pub async fn get_new_user(&self) -> String {
-        Render::new_user()
-    }
-
     pub async fn get_game_state(&self, player_id: &PlayerId) -> String {
         let player = self.players.get(player_id);
         let found_words = match player {

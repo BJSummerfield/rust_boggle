@@ -15,6 +15,7 @@ use tokio::{
 use tower_sessions::Session;
 
 use crate::models::{Boggle, PlayerId};
+use crate::render::Render;
 
 pub struct WebSockets {}
 
@@ -32,10 +33,10 @@ impl WebSockets {
         match player_id_opt {
             Some(player_id) => {
                 Self::send_initial_game_boggle(&ws_sender, &boggle, &player_id).await;
-                Self::monitor_websocket_connection(receiver, ws_sender, boggle, player_id).await;
+                Self::monitor_websocket_connection(receiver, &ws_sender, boggle, player_id).await;
             }
             None => {
-                //handle reconnection and break websocket connection
+                ws_sender.send(Message::Close(None)).unwrap();
             }
         }
     }
@@ -55,7 +56,7 @@ impl WebSockets {
     }
     async fn monitor_websocket_connection(
         receiver: SplitStream<WebSocket>,
-        ws_sender: UnboundedSender<Message>,
+        ws_sender: &UnboundedSender<Message>,
         boggle: Arc<Mutex<Boggle>>,
         username: PlayerId,
     ) {
@@ -89,27 +90,28 @@ impl WebSockets {
         boggle: &Arc<Mutex<Boggle>>,
         session: &Session,
     ) -> Option<PlayerId> {
-        let player_id = session
-            .get("id")
-            .await
-            .unwrap()
-            .expect("No session_id found");
-
-        let username: PlayerId = session
-            .get("username")
-            .await
-            .unwrap()
-            .expect("No username found");
-
-        let mut boggle = boggle.lock().await;
-        if boggle.players.contains_key(&player_id) {
-            boggle.players.mark_active(&player_id);
-            Some(player_id)
-        } else {
-            boggle
-                .players
-                .add_player(player_id.clone(), ws_sender.clone(), username.clone());
-            Some(player_id)
+        match (
+            session.get::<PlayerId>("id").await,
+            session.get::<PlayerId>("username").await,
+        ) {
+            (Ok(Some(player_id)), Ok(Some(username))) => {
+                let mut boggle = boggle.lock().await;
+                if !boggle.players.contains_key(&player_id) {
+                    boggle.players.add_player(
+                        player_id.clone(),
+                        ws_sender.clone(),
+                        username.clone(),
+                    );
+                } else {
+                    boggle.players.mark_active(&player_id);
+                }
+                Some(player_id)
+            }
+            _ => {
+                let reconnect_html = Render::reconnect();
+                let _ = ws_sender.send(Message::Text(reconnect_html));
+                None
+            }
         }
     }
 

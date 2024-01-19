@@ -12,6 +12,12 @@ h1 {
     color: #fff;
 }
 
+#game-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
 #game-board {
     display: grid;
     grid-template-columns: repeat(4, 1fr); 
@@ -22,7 +28,6 @@ h1 {
 #game-timer {
     font-size: 24px;
     font-weight: bold;
-    /* margin-bottom: 20px; */
     cursor: default;
 }
 

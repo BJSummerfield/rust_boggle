@@ -55,12 +55,29 @@ impl Handle {
         session: Session,
         Form(PlayerIdSubmission { username }): Form<PlayerIdSubmission>,
     ) -> impl IntoResponse {
-        session
-            .insert("username", username)
+        let sanitized_username = Self::sanitize_username(&username, 10);
+
+        if session
+            .insert("username", sanitized_username)
             .await
-            .expect("Could not serialize.");
-        println!("\n{:?}", session);
+            .is_err()
+        {
+            return (StatusCode::INTERNAL_SERVER_ERROR, "Could not serialize.").into_response();
+        }
+
         Html(Render::shell_template()).into_response()
+    }
+
+    fn sanitize_username(username: &PlayerId, max_length: usize) -> String {
+        let username = username.to_string();
+        let trimmed = username.trim();
+        let escaped = ammonia::clean(trimmed);
+
+        if escaped.len() > max_length {
+            escaped[..max_length].to_string()
+        } else {
+            escaped
+        }
     }
 
     pub async fn submit_word(

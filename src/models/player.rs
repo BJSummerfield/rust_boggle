@@ -31,7 +31,6 @@ impl PlayerList {
         self.players
             .entry(id)
             .or_insert(Player::new(sender, username));
-        println!("Players: {:?}", self.players);
     }
 
     pub fn remove_inactive(&mut self) {

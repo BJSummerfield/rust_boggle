@@ -13,20 +13,13 @@ impl Render {
         .into_string()
     }
 
-    pub fn new_user() -> String {
+    pub fn reconnect() -> String {
         html! {
-
-            div id = "game-timer" {}
-            div id="game-board" {}
-            div id="word-input" {
-                    input type="text"
-                    name="username"
-                    placeholder="Enter username"
-                    ws-send
-                    required
-                    {}
+            div id="main-container" {
+                a id="reconnect" href="/" {
+                    "Reconnect"
+                }
             }
-            div id="valid-words" {}
         }
         .into_string()
     }
@@ -69,7 +62,6 @@ impl Render {
     }
 
     pub fn starting_state() -> String {
-        println!("\n rendering html");
         html! {
             div id = "game-timer" {
                 (PreEscaped(Self::new_game_button()))
