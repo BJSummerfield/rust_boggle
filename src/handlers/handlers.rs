@@ -16,12 +16,7 @@ use tower_sessions::Session;
 use crate::models::{Boggle, PlayerIdSubmission};
 use crate::render::Render;
 use crate::{handlers::WebSockets, models::PlayerId};
-use serde::{Deserialize, Serialize};
-
-#[derive(Default, Deserialize, Serialize, Debug)]
-pub struct User {
-    pub username: String,
-}
+use serde::Deserialize;
 
 #[derive(Deserialize, Debug)]
 pub struct WordSubmission {
@@ -55,29 +50,11 @@ impl Handle {
         session: Session,
         Form(PlayerIdSubmission { username }): Form<PlayerIdSubmission>,
     ) -> impl IntoResponse {
-        let sanitized_username = Self::sanitize_username(&username, 10);
-
-        if session
-            .insert("username", sanitized_username)
-            .await
-            .is_err()
-        {
+        if session.insert("username", username).await.is_err() {
             return (StatusCode::INTERNAL_SERVER_ERROR, "Could not serialize.").into_response();
         }
 
         Html(Render::shell_template()).into_response()
-    }
-
-    fn sanitize_username(username: &PlayerId, max_length: usize) -> String {
-        let username = username.to_string();
-        let trimmed = username.trim();
-        let escaped = ammonia::clean(trimmed);
-
-        if escaped.len() > max_length {
-            escaped[..max_length].to_string()
-        } else {
-            escaped
-        }
     }
 
     pub async fn submit_word(
