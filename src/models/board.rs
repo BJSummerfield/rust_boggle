@@ -1,4 +1,4 @@
-use crate::models::{Dictionary, SearchResult};
+use crate::models::{Dictionary, SearchResult, WordList};
 use rand::seq::{IteratorRandom, SliceRandom};
 use std::sync::Arc;
 
@@ -15,8 +15,9 @@ const DICE: [&str; 16] = [
 pub struct Board {
     pub board: Vec<Vec<char>>,
     dictionary: Arc<Dictionary>,
-    pub valid_words: Vec<(String, String)>,
-    pub total_score: u32,
+    // pub valid_words: Vec<(String, String)>,
+    // pub total_score: u32,
+    pub words: WordList,
 }
 
 impl Board {
@@ -39,15 +40,11 @@ impl Board {
         let mut boggle_board = Board {
             board,
             dictionary: dictionary.clone(),
-            valid_words: Vec::new(),
-            total_score: 0,
+            words: WordList::new(),
         };
 
         boggle_board.find_valid_words();
-
-        for (word, _) in &boggle_board.valid_words {
-            boggle_board.total_score += Board::calculate_score(word.len());
-        }
+        boggle_board.words.total_words();
 
         boggle_board
     }
@@ -97,8 +94,8 @@ impl Board {
         match self.dictionary.search(&current_word.to_lowercase()) {
             SearchResult::ValidWord(definition) => {
                 let word = current_word.clone();
-                if !self.valid_words.iter().any(|(w, _)| w == &word) {
-                    self.valid_words.push((word, definition));
+                if !self.words.contains(&word) {
+                    self.words.add(&word, definition)
                 }
                 // Continue search even after finding a valid word
                 self.continue_search(i, j, visited, current_word);
@@ -143,5 +140,12 @@ impl Board {
             7 => 5,
             _ => 11,
         }
+    }
+
+    pub fn is_valid_word(word: &str) -> bool {
+        !(word.contains(' ')
+            || word.chars().any(|c| !c.is_alphabetic())
+            || word.len() <= 2
+            || word.len() > 16)
     }
 }

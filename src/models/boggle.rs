@@ -43,7 +43,7 @@ impl Boggle {
             dictionary,
             boggle_channel_tx,
             state: BoggleStateEnum::Starting,
-            timer: 10,
+            timer: 1000,
             timer_cancel_token,
             tx,
         }));
@@ -59,7 +59,7 @@ impl Boggle {
     pub async fn get_game_state(&self, player_id: &PlayerId) -> String {
         let player = self.players.get(player_id);
         let found_words = match player {
-            Some(p) => &p.found_words,
+            Some(p) => &p.words,
             None => return "Player not found".to_string(),
         };
 
@@ -70,7 +70,7 @@ impl Boggle {
                 let seconds = *&self.timer % 60;
 
                 let fmt_timer = format!("{}:{:02}", minutes, seconds);
-                Render::inprogress_state(&fmt_timer, &self.board, found_words)
+                Render::inprogress_state(&fmt_timer, &self.board, Some(found_words))
             }
             BoggleStateEnum::GameOver => Render::gameover_state(&self.board, &self.players),
         }
@@ -91,7 +91,7 @@ impl Boggle {
                 let seconds = *&self.timer % 60;
 
                 let fmt_timer = format!("{}:{:02}", minutes, seconds);
-                let inprogress_html = Render::inprogress_state(&fmt_timer, &self.board, &vec![]);
+                let inprogress_html = Render::inprogress_state(&fmt_timer, &self.board, None);
                 self.broadcast_state(inprogress_html);
             }
         }
@@ -100,21 +100,21 @@ impl Boggle {
     fn game_over(&mut self) {
         self.total_scores();
         let game_over_html = Render::gameover_state(&self.board, &self.players);
+        //
         //total the players word lists
         self.broadcast_state(game_over_html);
     }
 
     fn total_scores(&mut self) {
-        let valid_words = &self.board.valid_words;
         for player in self.players.values_mut() {
-            player.score_words(valid_words);
+            player.words.total_words();
         }
     }
 
     pub fn submit_word(&mut self, player_id: &PlayerId, word: &str) -> String {
         let sanitized_word = word.trim().to_uppercase();
 
-        if !Boggle::is_valid_word(&sanitized_word) {
+        if !Board::is_valid_word(&sanitized_word) {
             return Render::invalid_word_submission();
         }
 
@@ -123,16 +123,11 @@ impl Boggle {
             None => return Render::invalid_word_submission(),
         };
 
-        player.add_word(&sanitized_word);
-        Render::word_submit(sanitized_word)
-    }
+        player
+            .words
+            .add_from_board_if_not_exists(&sanitized_word, &self.board.words);
 
-    //maybe move this to the boggleboard
-    fn is_valid_word(word: &str) -> bool {
-        !(word.contains(' ')
-            || word.chars().any(|c| !c.is_alphabetic())
-            || word.len() <= 2
-            || word.len() > 16)
+        Render::word_submit(sanitized_word)
     }
 
     pub async fn set_state_to_starting(&mut self) {
@@ -173,13 +168,12 @@ impl Boggle {
 
     pub async fn get_player_score(&self, username: PlayerId) -> String {
         if username.0 == "Board Total" {
-            // Assuming self.board is accessible and has a field valid_words
-            Render::valid_words(&self.board.valid_words)
+            Render::valid_words(&self.board.words)
         } else {
             match self.players.get(&username) {
-                // Note the reference '&username'
-                Some(player) => Render::valid_words(&player.valid_words),
+                Some(player) => Render::valid_words(&player.words),
                 None => {
+                    // TODO move this to render
                     let markup = html! {
                         div {
                             "Username not found: " (username.0)
