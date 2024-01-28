@@ -13,7 +13,6 @@ pub enum BoggleStateEnum {
     GameOver,
 }
 
-//create a game state struct to hold the game state and the broadcast channel sender for sending messages to the clients (players)
 #[derive(Debug)]
 pub struct Boggle {
     pub players: PlayerList,
@@ -96,8 +95,7 @@ impl Boggle {
     fn game_over(&mut self) {
         self.total_scores();
         let game_over_html = Render::gameover_state(&self.board, &self.players);
-        //
-        //total the players word lists
+
         self.broadcast_state(game_over_html);
     }
 
