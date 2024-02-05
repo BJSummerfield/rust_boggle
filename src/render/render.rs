@@ -35,18 +35,18 @@ impl Render {
 
     pub fn word_input() -> String {
         html! {
-            input type="text"
-            name="word"
-            placeholder="Enter word"
-            hx-post="/submit_word"
-            hx-target="#found-words"
-            hx-swap="beforeend"
-            title="Only alphabetic characters; 3-16 letters."
-            maxlength="16"
-            minlength="3"
-            required
-            autofocus
-            {}
+            form hx-post="/submit_word" hx-target="#found-words" hx-swap="beforeend" {
+                input type="text"
+                name="word"
+                placeholder="Enter word"
+                title="Enter a single word with only alphabetic characters; 3-16 letters."
+                pattern="[A-Za-z]{3,16}"
+                maxlength="16"
+                minlength="3"
+                required
+                autofocus
+                {}
+            }
         }
         .into_string()
     }
@@ -266,13 +266,14 @@ impl Render {
                 input type="text"
                 name="username"
                 placeholder="Enter username"
+                title="Username must be 1-9 characters long, containing only letters and numbers."
+                pattern="[A-Za-z0-9]{1,9}"
                 maxlength="9"
+                minlength="1"
                 required
                 autofocus
                 {}
-                button type="submit" style="display: none;" { "Submit" }
             }
-
         }
         .into_string()
     }
