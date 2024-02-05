@@ -262,7 +262,7 @@ impl Render {
 
     pub fn username_form() -> String {
         html! {
-            form method="post" hx-post="/username" hx-target="#main-container" {
+            form hx-post="/username" hx-target="#main-container" {
                 input type="text"
                 name="username"
                 placeholder="Enter username"
