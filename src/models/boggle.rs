@@ -151,7 +151,6 @@ impl Boggle {
                     match new_state {
                         BoggleStateEnum::GameOver => {
                             state.game_over();
-                            // Additional logic can be added here if needed
                         },
                         _ => {}
                     }

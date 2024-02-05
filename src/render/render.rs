@@ -41,13 +41,12 @@ impl Render {
             hx-post="/submit_word"
             hx-target="#found-words"
             hx-swap="beforeend"
-            title="Only alphabetic characters; 2-16 letters."
+            title="Only alphabetic characters; 3-16 letters."
             maxlength="16"
-            minlength="2"
+            minlength="3"
             required
             autofocus
             {}
-            script { "document.addEventListener('DOMContentLoaded', function() { document.getElementsByName('word')[0].focus(); });" }
         }
         .into_string()
     }
