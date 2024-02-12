@@ -15,8 +15,6 @@ const DICE: [&str; 16] = [
 pub struct Board {
     pub board: Vec<Vec<char>>,
     dictionary: Arc<Dictionary>,
-    // pub valid_words: Vec<(String, String)>,
-    // pub total_score: u32,
     pub words: WordList,
 }
 
